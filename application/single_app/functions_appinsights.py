@@ -2,7 +2,6 @@
 
 import logging
 import os
-import threading
 from azure.monitor.opentelemetry import configure_azure_monitor
 import app_settings_cache
 
