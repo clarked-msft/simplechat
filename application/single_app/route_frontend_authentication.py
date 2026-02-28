@@ -103,7 +103,8 @@ def register_route_frontend_authentication(app):
 
         auth_url = msal_app.get_authorization_request_url(
             scopes=SCOPE, # Use SCOPE from config (includes offline_access)
-            redirect_uri=redirect_uri
+            redirect_uri=redirect_uri,
+            prompt='none'
         )
         print("Redirecting to Azure AD for authentication.")
         #auth_url= auth_url.replace('https://', 'http://')  # Ensure HTTPS for security

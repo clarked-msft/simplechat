@@ -187,6 +187,7 @@ SCOPE = ["User.Read", "User.ReadBasic.All", "People.Read.All", "Group.Read.All"]
 MICROSOFT_PROVIDER_AUTHENTICATION_SECRET = os.getenv("MICROSOFT_PROVIDER_AUTHENTICATION_SECRET")
 LOGIN_REDIRECT_URL = os.getenv("LOGIN_REDIRECT_URL")
 HOME_REDIRECT_URL = os.getenv("HOME_REDIRECT_URL")  # Front Door URL for home page
+ENABLE_AUTO_LOGIN = os.environ.get("ENABLE_AUTO_LOGIN", "false").lower() == "true"
 
 # Teams SSO Configuration
 TEAMS_APP_ID = os.getenv("TEAMS_APP_ID", CLIENT_ID)  # Can be same as CLIENT_ID or different

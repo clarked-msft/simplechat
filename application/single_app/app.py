@@ -499,6 +499,12 @@ def index():
     settings = get_settings()
     public_settings = sanitize_settings_for_user(settings)
 
+    # Auto-login: redirect unauthenticated users to login
+    if ENABLE_AUTO_LOGIN:
+        user = session.get("user")
+        if not user:
+            return redirect(url_for('login'))
+        
     # Ensure landing_page_text is always a valid string
     landing_text = settings.get("landing_page_text", "Click the button below to start chatting with the AI assistant. You agree to our [acceptable user policy by using this service](acceptable_use_policy.html).")
 
