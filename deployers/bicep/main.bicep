@@ -647,3 +647,106 @@ output var_webService string = appService.outputs.name
 // output values required for postup script in azure.yaml
 output var_enablePrivateNetworking bool = enablePrivateNetworking
 
+// consolidated settings JSON for postconfig.py Cosmos DB upsert
+// Key Vault secrets (API keys) are excluded and must be resolved at runtime by postconfig.py
+#disable-next-line BCP318
+
+var allGptModels = [for model in gptModels: {
+  deploymentName: model.modelName
+  modelName: model.modelName
+}]
+
+output var_postconfigSettings object = {
+  id: 'app_settings'
+  partition_key: 'app_settings'
+
+  // General > Health Check
+  enable_external_healthcheck: true
+
+  // AI Models - GPT
+  azure_openai_gpt_endpoint: openAI.outputs.openAIEndpoint
+  azure_openai_gpt_authentication_type: toLower(authenticationType)
+  azure_openai_gpt_subscription_id: subscription().subscriptionId
+  azure_openai_gpt_resource_group: openAI.outputs.openAIResourceGroup
+  gpt_model: {
+    selected: [
+      {
+        deploymentName: gptModels[0].modelName
+        modelName: gptModels[0].modelName
+      }
+    ]
+    all: allGptModels
+  }
+
+  // AI Models - Embedding
+  azure_openai_embedding_endpoint: openAI.outputs.openAIEndpoint
+  azure_openai_embedding_authentication_type: toLower(authenticationType)
+  azure_openai_embedding_subscription_id: subscription().subscriptionId
+  azure_openai_embedding_resource_group: openAI.outputs.openAIResourceGroup
+  embedding_model: {
+    selected: [
+      {
+        deploymentName: embeddingModels[0].modelName
+        modelName: embeddingModels[0].modelName
+      }
+    ]
+    all: [for model in embeddingModels: {
+      deploymentName: model.modelName
+      modelName: model.modelName
+    }]
+  }
+
+  // Agents and Actions > Agents Configuration
+  enable_semantic_kernel: false
+
+  // Logging > Application Insights Logging
+  enable_appinsights_global_logging: true
+
+  // Workspaces > Metadata Extraction
+  enable_extract_meta_data: true
+  metadata_extraction_model: gptModels[0].modelName
+
+  // Workspaces > Multimodal Vision Analysis
+  enable_multimodal_vision: true
+  multimodal_vision_model: gptModels[0].modelName
+
+  // Citations > Enhanced Citations
+  enable_enhanced_citations: true
+  office_docs_authentication_type: toLower(authenticationType)
+  office_docs_storage_account_blob_endpoint: storageAccount.outputs.endpoint
+
+  // Safety > Content Safety
+  enable_content_safety: deployContentSafety
+  content_safety_endpoint: deployContentSafety ? contentSafety.?outputs.contentSafetyEndpoint : ''
+  content_safety_authentication_type: toLower(authenticationType)
+
+  // Scale > Redis Cache
+  enable_redis_cache: deployRedisCache
+  redis_url: deployRedisCache ? redisCache.?outputs.redisCacheHostName : ''
+  redis_auth_type: toLower(authenticationType)
+
+  // Safety > Conversation Archiving
+  enable_conversation_archiving: true
+
+  // Search and Extract > Azure AI Search
+  azure_ai_search_endpoint: searchService.outputs.searchServiceEndpoint
+  azure_ai_search_authentication_type: toLower(authenticationType)
+
+  // Search and Extract > Azure Document Intelligence
+  azure_document_intelligence_endpoint: docIntel.outputs.documentIntelligenceServiceEndpoint
+  azure_document_intelligence_authentication_type: toLower(authenticationType)
+
+  // Search and Extract > Multimedia Support - Video Indexer
+  enable_video_file_support: deployVideoIndexerService
+  video_indexer_resource_group: rgName
+  video_indexer_subscription_id: subscription().subscriptionId
+  video_indexer_account_name: deployVideoIndexerService ? videoIndexerService.?outputs.videoIndexerServiceName : ''
+  video_indexer_location: rg.location
+  video_indexer_account_id: deployVideoIndexerService ? videoIndexerService.?outputs.videoIndexerAccountId : ''
+
+  // Search and Extract > Multimedia Support - Speech Service
+  enable_audio_file_support: deploySpeechService
+  speech_service_endpoint: deploySpeechService ? speechService.?outputs.speechServiceEndpoint : ''
+  speech_service_location: rg.location
+}
+
