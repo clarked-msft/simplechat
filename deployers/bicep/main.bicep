@@ -672,6 +672,11 @@ var allGptModels = [for model in gptModels: {
   modelName: model.modelName
 }]
 
+var allEmbeddingModels = [for model in embeddingModels: {
+  deploymentName: model.modelName
+  modelName: model.modelName
+}]
+
 output var_postconfigSettings object = {
   id: 'app_settings'
   partition_key: 'app_settings'
@@ -706,10 +711,7 @@ output var_postconfigSettings object = {
         modelName: embeddingModels[0].modelName
       }
     ]
-    all: [for model in embeddingModels: {
-      deploymentName: model.modelName
-      modelName: model.modelName
-    }]
+    all: allEmbeddingModels
   }
 
   // Agents and Actions > Agents Configuration
