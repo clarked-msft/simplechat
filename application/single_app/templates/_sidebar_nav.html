@@ -235,12 +235,24 @@
                   </a>
                 </li>
               {% endif %}
+              {% if app_settings.enable_rmf %}
+                <li class="nav-item">
+                  <a class="nav-link d-flex align-items-center" href="{{ url_for('frontend_rmf.rmf_workspace') }}" title="Open the Risk Management Framework workspace for the active group.">
+                    <i class="bi bi-shield-check me-2" style="font-size: 0.8em;"></i><span class="nav-text">RMF</span>
+                  </a>
+                </li>
+              {% endif %}
             </ul>
             {% else %}
             <!-- Regular Groups workspace link when not on group workspace page -->
             <a class="nav-link d-flex align-items-center" href="{{ url_for('frontend_group_workspaces.group_workspaces') }}" title="Open group workspaces for shared documents, prompts, agents, actions, workflows, endpoints, sync, and identities.">
               <i class="bi bi-folder me-2"></i><span class="nav-text"> Groups</span>
             </a>
+            {% if app_settings.enable_rmf %}
+            <a class="nav-link d-flex align-items-center ms-3" href="{{ url_for('frontend_rmf.rmf_workspace') }}" title="Open the Risk Management Framework workspace for the active group.">
+              <i class="bi bi-shield-check me-2"></i><span class="nav-text">RMF</span>
+            </a>
+            {% endif %}
             {% endif %}
           </li>
           {% endif %}

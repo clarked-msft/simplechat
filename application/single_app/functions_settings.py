@@ -950,6 +950,7 @@ def get_settings(use_cosmos=False, include_source=False):
         # Workspaces
         'enable_user_workspace': True,
         'enable_group_workspaces': True,
+        'enable_rmf': ENABLE_RMF_DEFAULT,
         'enable_group_creation': True,
         'require_member_of_create_group': False,
         'require_owner_for_group_agent_management': False,

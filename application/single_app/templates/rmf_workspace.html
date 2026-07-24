@@ -1,0 +1,3632 @@
+<!-- templates/rmf_workspace.html -->
+{% extends "base.html" %}
+
+{% block title %}RMF Workspace - {{ app_settings.app_title }}{% endblock %}
+
+{% block head %}
+<style>
+  .rmf-analysis-control-list {
+    max-height: min(18rem, 45vh);
+    overflow: auto;
+    overscroll-behavior: contain;
+    position: relative;
+    contain: paint;
+    background-color: var(--bs-body-bg);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="py-4" data-rmf-workspace>
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div>
+      <div class="text-uppercase text-muted small fw-semibold">Risk Management Framework</div>
+      <h1 class="h3 mb-1">{{ group.name }}</h1>
+      <p class="text-muted mb-0">One RMF system will be bound to this group workspace.</p>
+    </div>
+    <span class="badge {{ 'text-bg-success' if rmf_state.enabled else 'text-bg-secondary' }}">
+      {{ 'Enabled' if rmf_state.enabled else 'Not enabled' }}
+    </span>
+  </div>
+
+  {% if not rmf_state.enabled %}
+  <div class="card shadow-sm border-0">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-start gap-3">
+        <div class="rounded-circle bg-primary-subtle text-primary p-3">
+          <i class="bi bi-shield-check fs-3"></i>
+        </div>
+        <div class="flex-grow-1">
+          <h2 class="h5">Enable RMF for this workspace</h2>
+          <p class="text-muted">
+            Enabling RMF reveals the dedicated assessment pages for this group. It does not
+            import documents or start an analysis.
+          </p>
+          {% if can_manage_rmf %}
+          <button class="btn btn-primary" type="button" data-rmf-set-enabled="true">
+            Enable RMF
+          </button>
+          {% else %}
+          <div class="alert alert-info mb-0">
+            A group owner or administrator must enable RMF for this workspace.
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="card shadow-sm border-0 mb-4" data-rmf-service-card>
+    <div class="card-body p-4">
+      <div class="d-flex align-items-start gap-3">
+        <i class="bi bi-cloud-check fs-3 text-primary"></i>
+        <div class="flex-grow-1">
+          <h2 class="h5">RMF system</h2>
+          <div class="text-muted" data-rmf-service-status>Checking the RMF service...</div>
+          {% if can_manage_rmf %}
+          <form class="row g-3 mt-1 d-none" data-rmf-initialize-form>
+            <div class="col-md-6">
+              <label class="form-label" for="rmf-system-id">System ID</label>
+              <input class="form-control" id="rmf-system-id" name="system_id"
+                     value="{{ group.id }}" pattern="[A-Za-z0-9][A-Za-z0-9_-]*"
+                     maxlength="80" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="rmf-system-name">System name</label>
+              <input class="form-control" id="rmf-system-name" name="system_name"
+                     value="{{ group.name }}" maxlength="200" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="rmf-impact-level">Impact level</label>
+              <select class="form-select" id="rmf-impact-level" name="impact_level">
+                {% for level in range(1, 8) %}
+                <option value="{{ level }}" {{ 'selected' if level == 4 else '' }}>{{ level }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-9">
+              <label class="form-label" for="rmf-owner">System owner</label>
+              <input class="form-control" id="rmf-owner" name="owner" maxlength="200">
+            </div>
+            <div class="col-12">
+              <button class="btn btn-primary" type="submit">Initialize RMF system</button>
+            </div>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <ul class="nav nav-tabs mb-3" id="rmfWorkspaceTabs" role="tablist">
+    {% for tab_id, label in [
+      ('overview', 'Overview'),
+      ('evidence', 'Evidence'),
+      ('analysis', 'Analysis'),
+      ('controls', 'Controls'),
+      ('attestations', 'Attestations'),
+      ('export', 'Export')
+    ] %}
+    <li class="nav-item" role="presentation">
+      <button
+        class="nav-link {{ 'active' if loop.first else '' }}"
+        id="rmf-{{ tab_id }}-tab"
+        data-bs-toggle="tab"
+        data-bs-target="#rmf-{{ tab_id }}"
+        type="button"
+        role="tab"
+        aria-controls="rmf-{{ tab_id }}"
+        aria-selected="{{ 'true' if loop.first else 'false' }}">
+        {{ label }}
+      </button>
+    </li>
+    {% endfor %}
+  </ul>
+
+  <div class="tab-content">
+    <section
+      class="tab-pane fade show active"
+      id="rmf-overview"
+      role="tabpanel"
+      aria-labelledby="rmf-overview-tab"
+      tabindex="0">
+      <div class="card shadow-sm border-0" data-rmf-overview-loading>
+        <div class="card-body p-4 text-muted">
+          Initialize the RMF system to load its overview.
+        </div>
+      </div>
+
+      <div class="d-none" data-rmf-overview-content>
+        <div class="card shadow-sm border-0 mb-3">
+          <div class="card-body p-4">
+            <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+              <div>
+                <div class="text-uppercase text-muted small fw-semibold">Readiness</div>
+                <h2 class="h4 mb-1" data-rmf-readiness-title></h2>
+                <p class="text-muted mb-0" data-rmf-readiness-description></p>
+              </div>
+              <button class="btn btn-primary" type="button" data-rmf-next-action></button>
+            </div>
+            <div class="mt-3 d-none" data-rmf-readiness-warnings>
+              <div class="alert alert-warning mb-0">
+                <ul class="mb-0" data-rmf-warning-list></ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          {% for key, label, icon in [
+            ('evidence', 'Observed evidence', 'bi-file-earmark-check'),
+            ('policies', 'Policies', 'bi-journal-check'),
+            ('attestations', 'Attestations', 'bi-person-check'),
+            ('components', 'Components', 'bi-boxes')
+          ] %}
+          <div class="col-6 col-xl-3">
+            <div class="card shadow-sm border-0 h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between">
+                  <span class="text-muted">{{ label }}</span>
+                  <i class="bi {{ icon }} text-primary"></i>
+                </div>
+                <div class="display-6 mt-2" data-rmf-metric="{{ key }}">0</div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-lg-6">
+            <div class="card shadow-sm border-0 h-100">
+              <div class="card-body p-4">
+                <h2 class="h5">System</h2>
+                <dl class="row mb-0">
+                  <dt class="col-sm-4">Name</dt>
+                  <dd class="col-sm-8" data-rmf-system-name></dd>
+                  <dt class="col-sm-4">System ID</dt>
+                  <dd class="col-sm-8 font-monospace" data-rmf-system-id></dd>
+                  <dt class="col-sm-4">Impact level</dt>
+                  <dd class="col-sm-8" data-rmf-impact-level></dd>
+                  <dt class="col-sm-4">Owner</dt>
+                  <dd class="col-sm-8" data-rmf-system-owner></dd>
+                  <dt class="col-sm-4">Status</dt>
+                  <dd class="col-sm-8" data-rmf-system-status></dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="card shadow-sm border-0 h-100">
+              <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center">
+                  <h2 class="h5 mb-0">Baseline analysis coverage</h2>
+                  <span class="fw-semibold" data-rmf-coverage-label></span>
+                </div>
+                <div class="progress mt-3" role="progressbar" aria-label="Analysis coverage"
+                     aria-valuemin="0" aria-valuemax="100">
+                  <div class="progress-bar" data-rmf-coverage-bar></div>
+                </div>
+                <p class="text-muted mt-3 mb-1" data-rmf-coverage-detail></p>
+                <p class="text-muted small mb-0" data-rmf-last-analysis></p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-lg-5">
+            <div class="card shadow-sm border-0 h-100">
+              <div class="card-body p-4">
+                <h2 class="h5">Draft posture</h2>
+                <p class="text-muted small">
+                  AI-drafted analysis status, not a compliance score or authorization decision.
+                </p>
+                <div class="vstack gap-2">
+                  {% for key, label in [
+                    ('implemented', 'Implemented'),
+                    ('partially_implemented', 'Partially implemented'),
+                    ('planned', 'Planned'),
+                    ('inherited', 'Inherited'),
+                    ('not_applicable', 'Not applicable')
+                  ] %}
+                  <div class="d-flex justify-content-between border-bottom pb-2">
+                    <span>{{ label }}</span>
+                    <span class="fw-semibold" data-rmf-posture="{{ key }}">0</span>
+                  </div>
+                  {% endfor %}
+                </div>
+                <div class="mt-3 text-muted small" data-rmf-confidence></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-3">
+            <div class="card shadow-sm border-0 h-100">
+              <div class="card-body p-4">
+                <h2 class="h5">Open gaps</h2>
+                <div class="display-6" data-rmf-gap-controls>0</div>
+                <div class="text-muted">controls with gaps</div>
+                <hr>
+                <div class="h3 mb-0" data-rmf-gap-requirements>0</div>
+                <div class="text-muted">unmet requirements</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="card shadow-sm border-0 h-100">
+              <div class="card-body p-4">
+                <h2 class="h5">Topology</h2>
+                <div class="d-flex justify-content-between border-bottom pb-2 mb-2">
+                  <span>Boundaries</span>
+                  <span class="fw-semibold" data-rmf-boundaries>0</span>
+                </div>
+                <div class="d-flex justify-content-between border-bottom pb-2 mb-3">
+                  <span>Dependencies</span>
+                  <span class="fw-semibold" data-rmf-dependencies>0</span>
+                </div>
+                <div class="text-muted small mb-2">Component types</div>
+                <ul class="list-unstyled mb-0" data-rmf-component-types></ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section
+      class="tab-pane fade"
+      id="rmf-evidence"
+      role="tabpanel"
+      aria-labelledby="rmf-evidence-tab"
+      tabindex="0">
+      <div class="card shadow-sm border-0">
+        <div class="card-body p-4">
+          <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+            <div>
+              <h2 class="h5 mb-1">Evidence</h2>
+              <p class="text-muted mb-0">
+                Synchronize current workspace document revisions with RMF.
+              </p>
+            </div>
+            <button class="btn btn-outline-primary btn-sm" type="button"
+                    data-rmf-evidence-refresh>
+              Refresh
+            </button>
+          </div>
+          <div class="alert alert-info" data-rmf-evidence-capabilities>
+            Loading supported evidence formats...
+          </div>
+          <div class="table-responsive">
+            <table class="table align-middle mb-0">
+              <caption class="visually-hidden">RMF evidence synchronization status</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Document</th>
+                  <th scope="col">Classification</th>
+                  <th scope="col">RMF state</th>
+                  <th scope="col">Action</th>
+                </tr>
+              </thead>
+              <tbody data-rmf-evidence-rows>
+                <tr><td colspan="4" class="text-muted">Load the Evidence tab to view documents.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section
+      class="tab-pane fade"
+      id="rmf-analysis"
+      role="tabpanel"
+      aria-labelledby="rmf-analysis-tab"
+      tabindex="0">
+      <div class="row g-3">
+        <div class="col-xl-5">
+          <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+              <h2 class="h5 mb-1">Run analysis</h2>
+              <p class="text-muted">
+                Draft cited implementation statements from the current RMF evidence.
+              </p>
+              <div class="alert alert-info" data-rmf-analysis-capabilities>
+                Loading analysis capabilities...
+              </div>
+
+              <fieldset class="mb-3">
+                <legend class="form-label mb-2">Scope</legend>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="rmf-analysis-scope"
+                         id="rmf-analysis-baseline" value="baseline" checked>
+                  <label class="form-check-label" for="rmf-analysis-baseline">
+                    Impact-level baseline
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="rmf-analysis-scope"
+                         id="rmf-analysis-selected" value="selected">
+                  <label class="form-check-label" for="rmf-analysis-selected">
+                    Selected controls
+                  </label>
+                </div>
+              </fieldset>
+
+              <div class="d-none mb-3" data-rmf-analysis-picker>
+                <label class="form-label" for="rmf-analysis-search">Find controls</label>
+                <input class="form-control mb-2" id="rmf-analysis-search" type="search"
+                       placeholder="Search by ID, title, or family">
+                <div class="small text-muted mb-2" data-rmf-analysis-selected-count>
+                  0 controls selected
+                </div>
+                <div class="border rounded p-2 rmf-analysis-control-list"
+                     data-rmf-analysis-controls></div>
+              </div>
+
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="rmf-analysis-deep"
+                       data-rmf-analysis-deep>
+                <label class="form-check-label" for="rmf-analysis-deep">
+                  Deep analysis
+                </label>
+                <div class="form-text">
+                  Re-analyzes weak drafts with wider retrieval and can take significantly longer.
+                </div>
+              </div>
+              <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="rmf-analysis-fresh"
+                       data-rmf-analysis-fresh>
+                <label class="form-check-label" for="rmf-analysis-fresh">
+                  Fresh analysis
+                </label>
+                <div class="form-text">
+                  Bypasses reusable cached responses and may increase model usage and cost.
+                </div>
+              </div>
+
+              {% if can_manage_rmf_analysis %}
+              <div class="d-flex flex-wrap gap-2">
+                <button class="btn btn-primary" type="button" data-rmf-analysis-start>
+                  Start analysis
+                </button>
+                <button class="btn btn-outline-danger d-none" type="button"
+                        data-rmf-analysis-cancel>
+                  Cancel active job
+                </button>
+              </div>
+              {% else %}
+              <div class="alert alert-secondary mb-0">
+                View only. A group owner or administrator can start or cancel analysis.
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="col-xl-7">
+          <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body p-4">
+              <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+                <div>
+                  <h2 class="h5 mb-1">Current status</h2>
+                  <div class="text-muted" data-rmf-analysis-status>No analysis job is active.</div>
+                </div>
+                <button class="btn btn-outline-primary btn-sm" type="button"
+                        data-rmf-analysis-refresh>
+                  Refresh
+                </button>
+              </div>
+              <div class="progress mt-3" role="progressbar" aria-label="Analysis progress"
+                   aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar" data-rmf-analysis-progress></div>
+              </div>
+              <div class="row g-2 mt-2 small">
+                <div class="col-6 col-md">Total: <strong data-rmf-analysis-total>0</strong></div>
+                <div class="col-6 col-md">
+                  Complete: <strong data-rmf-analysis-completed>0</strong>
+                </div>
+                <div class="col-6 col-md">
+                  Failed: <strong data-rmf-analysis-failed>0</strong>
+                </div>
+                <div class="col-6 col-md">
+                  Queued: <strong data-rmf-analysis-queued>0</strong>
+                </div>
+                <div class="col-6 col-md">
+                  Running: <strong data-rmf-analysis-running>0</strong>
+                </div>
+              </div>
+              <div class="mt-3 small" data-rmf-analysis-current></div>
+              <div class="alert alert-danger d-none mt-3 mb-0" data-rmf-analysis-error></div>
+              <div class="mt-3 d-none" data-rmf-analysis-failures>
+                <h3 class="h6">Control failures</h3>
+                <ul class="small mb-0" data-rmf-analysis-failure-list></ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+              <h2 class="h5">Analysis history</h2>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <caption class="visually-hidden">RMF analysis job history</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Created</th>
+                      <th scope="col">Scope</th>
+                      <th scope="col">Options</th>
+                      <th scope="col">Progress</th>
+                      <th scope="col">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody data-rmf-analysis-history>
+                    <tr><td colspan="5" class="text-muted">Load Analysis to view history.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section
+      class="tab-pane fade"
+      id="rmf-controls"
+      role="tabpanel"
+      aria-labelledby="rmf-controls-tab"
+      tabindex="0">
+      <div class="row g-3">
+        <div class="col-xl-7">
+          <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+              <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+                <div>
+                  <h2 class="h5 mb-1">Baseline controls</h2>
+                  <p class="text-muted mb-0">
+                    Review generated drafts. Evidence changes mark prior results stale.
+                  </p>
+                </div>
+                <button class="btn btn-outline-primary btn-sm" type="button"
+                        data-rmf-controls-refresh>Refresh</button>
+              </div>
+              <div class="row g-2 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label" for="rmf-controls-search">Find controls</label>
+                  <input class="form-control" id="rmf-controls-search" type="search"
+                         maxlength="100" placeholder="ID, title, or family">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label" for="rmf-controls-family">Family</label>
+                  <select class="form-select" id="rmf-controls-family" data-rmf-controls-family>
+                    <option value="">All families</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label" for="rmf-controls-state">Freshness</label>
+                  <select class="form-select" id="rmf-controls-state" data-rmf-controls-state>
+                    <option value="">All states</option>
+                    <option value="current">Current</option>
+                    <option value="stale">Stale</option>
+                    <option value="not-analyzed">Not analyzed</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label" for="rmf-controls-status">Implementation status</label>
+                  <select class="form-select" id="rmf-controls-status" data-rmf-controls-status>
+                    <option value="">All statuses</option>
+                    <option value="implemented">Implemented</option>
+                    <option value="partially-implemented">Partially implemented</option>
+                    <option value="planned">Planned</option>
+                    <option value="inherited">Inherited</option>
+                    <option value="not-applicable">Not applicable</option>
+                  </select>
+                </div>
+                <div class="col-md-6 d-flex align-items-end">
+                  <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="rmf-controls-gaps"
+                           data-rmf-controls-gaps>
+                    <label class="form-check-label" for="rmf-controls-gaps">
+                      Only controls with gaps
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                  <caption class="visually-hidden">RMF baseline control review</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Control</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Freshness</th>
+                      <th scope="col">Confidence</th>
+                      <th scope="col">Gaps</th>
+                      <th scope="col">Citations</th>
+                    </tr>
+                  </thead>
+                  <tbody data-rmf-controls-rows>
+                    <tr><td colspan="6" class="text-muted">Load Controls to review drafts.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="d-flex justify-content-between align-items-center gap-2">
+                <button class="btn btn-outline-secondary btn-sm" type="button"
+                        data-rmf-controls-previous>Previous</button>
+                <span class="small text-muted" data-rmf-controls-page></span>
+                <button class="btn btn-outline-secondary btn-sm" type="button"
+                        data-rmf-controls-next>Next</button>
+              </div>
+              <div class="alert alert-danger d-none mt-3 mb-0" data-rmf-controls-error></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-xl-5">
+          <div class="card shadow-sm border-0" data-rmf-control-detail>
+            <div class="card-body p-4">
+              <div class="text-muted" data-rmf-control-detail-empty>
+                Select a control to review its cited implementation draft.
+              </div>
+              <div class="d-none" data-rmf-control-detail-content>
+                <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+                  <div>
+                    <div class="text-uppercase text-muted small fw-semibold"
+                         data-rmf-control-family></div>
+                    <h2 class="h5 mb-1" data-rmf-control-title></h2>
+                  </div>
+                  <span class="badge text-bg-light border" data-rmf-control-state></span>
+                </div>
+                <p class="small text-muted mt-2" data-rmf-control-generated></p>
+                <div class="alert alert-warning py-2">
+                  AI-drafted content must be reviewed against the cited evidence.
+                </div>
+                <div class="border rounded p-3 mb-3" data-rmf-applicability-panel>
+                  <div class="d-flex flex-wrap justify-content-between gap-2">
+                    <h3 class="h6 mb-1">Applicability</h3>
+                    <span class="badge text-bg-light border"
+                          data-rmf-applicability-state>Not reviewed</span>
+                  </div>
+                  <p class="small text-muted mb-2" data-rmf-applicability-description>
+                    No applicability determination has been recorded.
+                  </p>
+                  <div class="small mb-2 d-none" data-rmf-applicability-current>
+                    <div class="text-pre-wrap" data-rmf-applicability-rationale></div>
+                    <div class="text-muted mt-1" data-rmf-applicability-metadata></div>
+                    <div class="vstack gap-1 mt-2"
+                         data-rmf-applicability-citations></div>
+                  </div>
+                  {% if can_manage_rmf_analysis %}
+                  <label class="form-label small" for="rmf-applicability-rationale">
+                    Reviewer rationale
+                  </label>
+                  <textarea class="form-control form-control-sm" rows="3"
+                            maxlength="2000" id="rmf-applicability-rationale"
+                            data-rmf-applicability-input
+                            placeholder="Explain why the control has no in-scope subject."></textarea>
+                  <div class="d-flex flex-wrap gap-2 mt-2">
+                    <button class="btn btn-success btn-sm d-none" type="button"
+                            data-rmf-applicability-approve>
+                      Approve Not Applicable
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm d-none" type="button"
+                            data-rmf-applicability-reject>
+                      Reject recommendation
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm" type="button"
+                            data-rmf-applicability-direct>
+                      Mark Not Applicable
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm d-none" type="button"
+                            data-rmf-applicability-revoke>
+                      Revoke determination
+                    </button>
+                  </div>
+                  {% endif %}
+                  <div class="alert alert-danger d-none py-2 mt-2 mb-0"
+                       data-rmf-applicability-error></div>
+                  <details class="mt-2">
+                    <summary class="small">Applicability history</summary>
+                    <div class="vstack gap-1 mt-2"
+                         data-rmf-applicability-history></div>
+                  </details>
+                </div>
+                <h3 class="h6">Control requirement</h3>
+                <p class="small text-muted text-pre-wrap" data-rmf-control-statement></p>
+                <h3 class="h6">Implementation statement</h3>
+                <p class="text-pre-wrap" data-rmf-control-implementation></p>
+                <dl class="row small">
+                  <dt class="col-5">Status</dt><dd class="col-7" data-rmf-control-status></dd>
+                  <dt class="col-5">Confidence</dt>
+                  <dd class="col-7" data-rmf-control-confidence></dd>
+                  <dt class="col-5">Responsible role</dt>
+                  <dd class="col-7" data-rmf-control-role></dd>
+                  <dt class="col-5">Inheritance</dt>
+                  <dd class="col-7" data-rmf-control-inheritance></dd>
+                  <dt class="col-5">Provenance</dt>
+                  <dd class="col-7" data-rmf-control-provenance></dd>
+                </dl>
+                <h3 class="h6">Rationale</h3>
+                <p class="small text-pre-wrap" data-rmf-control-rationale></p>
+                <h3 class="h6">Unmet requirements</h3>
+                <ul class="small" data-rmf-control-gaps-list></ul>
+                <h3 class="h6">Citations</h3>
+                <div class="vstack gap-2 mb-3" data-rmf-control-citations></div>
+                <h3 class="h6">Generation history</h3>
+                <div class="vstack gap-2" data-rmf-control-history></div>
+                {% if can_manage_rmf_analysis %}
+                <button class="btn btn-outline-primary btn-sm mt-3" type="button"
+                        data-rmf-control-analyze>
+                  Analyze this control
+                </button>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section
+      class="tab-pane fade"
+      id="rmf-attestations"
+      role="tabpanel"
+      aria-labelledby="rmf-attestations-tab"
+      tabindex="0">
+      <div class="alert alert-warning">
+        <strong>Self-reported, unverified.</strong>
+        Attestations supplement observed evidence but cannot independently establish that a
+        control is implemented.
+      </div>
+      <div class="row g-3">
+        <div class="col-xl-5">
+          {% if can_manage_rmf_analysis %}
+          <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body p-4">
+              <h2 class="h5">Start an interview</h2>
+              <p class="small text-muted">
+                By default, RMF asks only about planned, partially implemented, or
+                never-analyzed controls.
+              </p>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="rmf-attestation-scope"
+                       id="rmf-attestation-baseline" value="baseline" checked>
+                <label class="form-check-label" for="rmf-attestation-baseline">
+                  Eligible baseline controls
+                </label>
+              </div>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="rmf-attestation-scope"
+                       id="rmf-attestation-selected" value="selected">
+                <label class="form-check-label" for="rmf-attestation-selected">
+                  Selected controls
+                </label>
+              </div>
+              <div class="border rounded p-2 rmf-analysis-control-list mb-2"
+                   data-rmf-attestation-controls></div>
+              <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox"
+                       id="rmf-attestation-all" data-rmf-attestation-all>
+                <label class="form-check-label" for="rmf-attestation-all">
+                  Include controls analysis already marked implemented, inherited, or
+                  not applicable
+                </label>
+              </div>
+              <button class="btn btn-primary" type="button"
+                      data-rmf-attestation-start>Start interview</button>
+            </div>
+          </div>
+          {% endif %}
+          <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+              <div class="d-flex justify-content-between align-items-center gap-2">
+                <h2 class="h5 mb-0">Interview sessions</h2>
+                <button class="btn btn-sm btn-outline-secondary" type="button"
+                        data-rmf-attestation-refresh>Refresh</button>
+              </div>
+              <div class="vstack gap-2 mt-3" data-rmf-attestation-sessions>
+                <div class="text-muted">Open this tab to load interviews.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-xl-7">
+          <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+              <div data-rmf-attestation-empty class="text-muted">
+                Select or start an interview session.
+              </div>
+              <div data-rmf-attestation-detail class="d-none">
+                <div class="d-flex flex-wrap justify-content-between gap-2">
+                  <div>
+                    <div class="small text-muted" data-rmf-attestation-session-id></div>
+                    <h2 class="h5 mb-1" data-rmf-attestation-title></h2>
+                  </div>
+                  <span class="badge text-bg-light border text-capitalize"
+                        data-rmf-attestation-status></span>
+                </div>
+                <p class="small text-muted mt-2" data-rmf-attestation-progress></p>
+                <div class="alert alert-info d-none" data-rmf-attestation-current>
+                  <div class="small fw-semibold text-uppercase mb-1"
+                       data-rmf-attestation-control></div>
+                  <p class="mb-3 text-pre-wrap" data-rmf-attestation-question></p>
+                  <label class="form-label" for="rmf-attestation-answer">
+                    Workspace member answer
+                  </label>
+                  <textarea class="form-control" rows="5" maxlength="10000"
+                            id="rmf-attestation-answer"
+                            data-rmf-attestation-answer></textarea>
+                  <div class="d-flex flex-wrap gap-2 mt-3">
+                    <button class="btn btn-primary" type="button"
+                            data-rmf-attestation-submit>Submit answer</button>
+                  </div>
+                </div>
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                  <button class="btn btn-outline-primary d-none" type="button"
+                          data-rmf-attestation-next>Generate next question</button>
+                  {% if can_manage_rmf_analysis %}
+                  <button class="btn btn-outline-danger d-none" type="button"
+                          data-rmf-attestation-cancel>Cancel session</button>
+                  <button class="btn btn-outline-primary d-none" type="button"
+                          data-rmf-attestation-analyze>Analyze attested controls</button>
+                  {% endif %}
+                </div>
+                <h3 class="h6">Transcript</h3>
+                <div class="vstack gap-2" data-rmf-attestation-transcript></div>
+              </div>
+              <div class="alert alert-danger d-none mt-3 mb-0"
+                   data-rmf-attestation-error></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section
+      class="tab-pane fade"
+      id="rmf-export"
+      role="tabpanel"
+      aria-labelledby="rmf-export-tab"
+      tabindex="0">
+      <div class="row g-3">
+        <div class="col-xl-5">
+          <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body p-4">
+              <div class="d-flex justify-content-between align-items-center gap-2">
+                <h2 class="h5 mb-0">Reusable templates</h2>
+                <button class="btn btn-sm btn-outline-secondary" type="button"
+                        data-rmf-export-refresh>Refresh</button>
+              </div>
+              <p class="small text-muted mt-2">
+                Active versions may be used by every workspace member. Versions are immutable.
+              </p>
+              <div class="vstack gap-2" data-rmf-export-templates>
+                <div class="text-muted">Open this tab to load templates.</div>
+              </div>
+            </div>
+          </div>
+          {% if can_manage_rmf %}
+          <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+              <h2 class="h5">Upload a template version</h2>
+              <form data-rmf-export-template-form>
+                <label class="form-label" for="rmf-export-file">XLSX workbook</label>
+                <input class="form-control" id="rmf-export-file" type="file"
+                       accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                       data-rmf-export-file required>
+                <button class="btn btn-outline-primary mt-2" type="button"
+                        data-rmf-export-inspect>Inspect workbook</button>
+                <div class="d-none mt-3" data-rmf-export-mapping>
+                  <label class="form-label" for="rmf-export-name">Template family name</label>
+                  <input class="form-control" id="rmf-export-name" maxlength="120"
+                         data-rmf-export-name required>
+                  <div class="row g-2 mt-1">
+                    <div class="col-md-8">
+                      <label class="form-label" for="rmf-export-sheet">Sheet</label>
+                      <select class="form-select" id="rmf-export-sheet"
+                              data-rmf-export-sheet required></select>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label" for="rmf-export-header-row">Header row</label>
+                      <input class="form-control" id="rmf-export-header-row" type="number"
+                             min="1" max="1000" data-rmf-export-header-row required>
+                    </div>
+                  </div>
+                  <label class="form-label mt-2" for="rmf-export-control-id">
+                    Control ID header
+                  </label>
+                  <select class="form-select" id="rmf-export-control-id"
+                          data-rmf-export-control-id required></select>
+                  <h3 class="h6 mt-3">Canonical field mapping</h3>
+                  <div class="row g-2" data-rmf-export-field-mapping></div>
+                  <button class="btn btn-primary mt-3" type="submit">
+                    Save immutable version
+                  </button>
+                </div>
+              </form>
+              <div class="alert alert-danger d-none mt-3 mb-0"
+                   data-rmf-export-template-error></div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+        <div class="col-xl-7">
+          <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body p-4">
+              <h2 class="h5">Export readiness</h2>
+              <label class="form-label" for="rmf-export-selector">Active template version</label>
+              <select class="form-select" id="rmf-export-selector"
+                      data-rmf-export-selector></select>
+              <div class="row g-2 mt-2" data-rmf-export-readiness-counts></div>
+              <div class="alert alert-warning d-none mt-3 mb-0"
+                   data-rmf-export-readiness-warnings></div>
+              <button class="btn btn-primary mt-3" type="button"
+                      data-rmf-export-generate disabled>Generate workbook</button>
+              <div class="alert alert-danger d-none mt-3 mb-0"
+                   data-rmf-export-error></div>
+            </div>
+          </div>
+          <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+              <h2 class="h5">Export history</h2>
+              <div class="vstack gap-2" data-rmf-export-history>
+                <div class="text-muted">No exports loaded.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  {% if can_manage_rmf %}
+  <div class="mt-4 pt-3 border-top">
+    <button class="btn btn-outline-danger btn-sm" type="button" data-rmf-set-enabled="false">
+      Disable RMF for this workspace
+    </button>
+  </div>
+  {% endif %}
+  {% endif %}
+
+  <div class="alert alert-danger d-none mt-3" data-rmf-error role="alert"></div>
+</div>
+
+<script>
+  const rmfStatus = document.querySelector("[data-rmf-service-status]");
+  const rmfInitializeForm = document.querySelector("[data-rmf-initialize-form]");
+  const rmfOverviewLoading = document.querySelector("[data-rmf-overview-loading]");
+  const rmfOverviewContent = document.querySelector("[data-rmf-overview-content]");
+  const rmfEvidenceRows = document.querySelector("[data-rmf-evidence-rows]");
+  const canManageRmfAnalysis = {{ can_manage_rmf_analysis | tojson }};
+  const canManageRmfEvidence = {{ can_manage_rmf_evidence | tojson }};
+  const canManageRmfExport = {{ can_manage_rmf | tojson }};
+  const rmfAnalysisTerminalStatuses =
+    new Set(["succeeded", "partial", "failed", "stale", "cancelled"]);
+  let rmfAnalysisCapabilities = null;
+  let rmfAnalysisJobs = [];
+  let rmfAnalysisLoaded = false;
+  let rmfAnalysisPollTimer = null;
+  let rmfAnalysisActiveJobId = null;
+  const rmfSelectedControls = new Set();
+  let rmfControlsLoaded = false;
+  let rmfControlsPage = 1;
+  let rmfControlsTotal = 0;
+  const rmfControlsPageSize = 25;
+  let rmfSelectedControlId = null;
+  let rmfCurrentApplicability = null;
+  let rmfControlsSearchTimer = null;
+  let rmfControlsRequestId = 0;
+  let rmfEvidenceLoaded = false;
+  let rmfEvidencePollTimer = null;
+  let rmfAttestationsLoaded = false;
+  let rmfAttestationCapabilities = null;
+  let rmfAttestationSessions = [];
+  let rmfAttestationCurrent = null;
+  const rmfAttestationSelectedControls = new Set();
+  let rmfExportLoaded = false;
+  let rmfExportTemplates = [];
+  let rmfExportJobs = [];
+  let rmfExportInspection = null;
+  let rmfExportPollTimer = null;
+  let rmfExportPollAttempts = 0;
+  let rmfExportActiveId = null;
+  let rmfExportGenerationPending = false;
+  let rmfExportLoadRequestId = 0;
+  let rmfExportReadinessRequestId = 0;
+  let rmfExportInspectionRequestId = 0;
+  let rmfExportIdempotencyKey = null;
+  let rmfExportIdempotencySelection = null;
+  const rmfExportTerminalStatuses =
+    new Set(["succeeded", "completed", "complete", "partial", "failed", "cancelled"]);
+  const rmfExportCanonicalFields = [
+    ["status", "Status"],
+    ["implementation_statement", "Implementation statement"],
+    ["responsible_role", "Responsible role"],
+    ["inheritance", "Inheritance"],
+    ["citations", "Citations"],
+    ["rationale", "Rationale"],
+    ["unmet_requirements", "Unmet requirements"],
+    ["confidence", "Confidence"],
+    ["provenance", "Provenance"]
+  ];
+
+  function setText(selector, value) {
+    const element = document.querySelector(selector);
+    if (element) element.textContent = value ?? "";
+  }
+
+  function renderRmfOverview(overview) {
+    const system = overview.system;
+    const readiness = overview.readiness;
+    setText("[data-rmf-readiness-title]", readiness.title);
+    setText("[data-rmf-readiness-description]", readiness.description);
+    setText("[data-rmf-system-name]", system.name);
+    setText("[data-rmf-system-id]", system.system_id);
+    setText("[data-rmf-impact-level]", system.impact_level);
+    setText("[data-rmf-system-owner]", system.owner || "Not assigned");
+    setText("[data-rmf-system-status]", system.status);
+
+    const metrics = {
+      evidence: overview.inventory.evidence,
+      policies: overview.inventory.policies,
+      attestations: overview.inventory.attestations,
+      components: overview.topology.components
+    };
+    Object.entries(metrics).forEach(([key, value]) => {
+      setText(`[data-rmf-metric="${key}"]`, value);
+    });
+
+    const coverage = overview.baseline.coverage_percent;
+    setText("[data-rmf-coverage-label]", `${coverage}%`);
+    setText(
+      "[data-rmf-coverage-detail]",
+      `${overview.baseline.analyzed_controls} of ${overview.baseline.total_controls} baseline controls analyzed`
+    );
+    const coverageBar = document.querySelector("[data-rmf-coverage-bar]");
+    coverageBar.style.width = `${coverage}%`;
+    coverageBar.parentElement.setAttribute("aria-valuenow", coverage);
+    setText(
+      "[data-rmf-last-analysis]",
+      overview.last_analysis_at
+        ? `Last analysis: ${new Date(overview.last_analysis_at).toLocaleString()}`
+        : "No analysis has been run."
+    );
+
+    Object.entries(overview.posture).forEach(([key, value]) => {
+      if (key !== "average_confidence") {
+        setText(`[data-rmf-posture="${key}"]`, value);
+      }
+    });
+    setText(
+      "[data-rmf-confidence]",
+      overview.posture.average_confidence == null
+        ? "Average confidence: not available"
+        : `Average confidence: ${Math.round(overview.posture.average_confidence * 100)}%`
+    );
+    setText("[data-rmf-gap-controls]", overview.gaps.controls_with_gaps);
+    setText("[data-rmf-gap-requirements]", overview.gaps.unmet_requirements);
+    setText("[data-rmf-boundaries]", overview.topology.boundaries);
+    setText("[data-rmf-dependencies]", overview.topology.dependencies);
+
+    const typeList = document.querySelector("[data-rmf-component-types]");
+    typeList.replaceChildren();
+    const componentTypes = Object.entries(overview.topology.component_types);
+    if (componentTypes.length === 0) {
+      const item = document.createElement("li");
+      item.className = "text-muted";
+      item.textContent = "No topology collected.";
+      typeList.appendChild(item);
+    } else {
+      componentTypes
+        .sort(([left], [right]) => left.localeCompare(right))
+        .forEach(([name, count]) => {
+          const item = document.createElement("li");
+          item.className = "d-flex justify-content-between gap-2 mb-1";
+          const label = document.createElement("span");
+          label.className = "text-truncate";
+          label.textContent = name;
+          const value = document.createElement("span");
+          value.className = "fw-semibold";
+          value.textContent = count;
+          item.append(label, value);
+          typeList.appendChild(item);
+        });
+    }
+
+    const warningContainer = document.querySelector("[data-rmf-readiness-warnings]");
+    const warningList = document.querySelector("[data-rmf-warning-list]");
+    warningList.replaceChildren();
+    readiness.warnings.forEach((warning) => {
+      const item = document.createElement("li");
+      item.textContent = warning;
+      warningList.appendChild(item);
+    });
+    warningContainer.classList.toggle("d-none", readiness.warnings.length === 0);
+
+    const action = document.querySelector("[data-rmf-next-action]");
+    action.textContent = readiness.action_label;
+    action.dataset.rmfTargetTab = readiness.action_target;
+    rmfOverviewLoading.classList.add("d-none");
+    rmfOverviewContent.classList.remove("d-none");
+  }
+
+  async function loadRmfOverview() {
+    rmfOverviewLoading.querySelector(".card-body").textContent = "Loading overview...";
+    try {
+      const response = await fetch("/api/rmf/workspace/overview");
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Unable to load RMF overview.");
+      renderRmfOverview(payload);
+    } catch (error) {
+      rmfOverviewLoading.querySelector(".card-body").textContent = error.message;
+    }
+  }
+
+  async function loadRmfExportTemplateDetail(templateId) {
+    if (!templateId) return;
+    setRmfExportError();
+    try {
+      const response = await fetch(
+        `/api/rmf/workspace/export-templates/${encodeURIComponent(templateId)}`
+      );
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Unable to load template details.");
+      const index = rmfExportTemplates.findIndex(
+        (template) => rmfExportTemplateId(template) === String(templateId)
+      );
+      if (index >= 0) rmfExportTemplates[index] = payload;
+      else rmfExportTemplates.push(payload);
+      renderRmfExportTemplates();
+    } catch (error) {
+      setRmfExportError(error.message);
+    }
+  }
+
+  function rmfImportsFromPayload(payload) {
+    return Array.isArray(payload) ? payload : [];
+  }
+
+  function rmfCapabilityExtensions(capabilities) {
+    const supportedSuffixes = Array.isArray(capabilities?.supported_suffixes)
+      ? capabilities.supported_suffixes
+      : [];
+    return new Set(supportedSuffixes.map((suffix) => {
+      const normalized = String(suffix).trim().toLowerCase();
+      if (!normalized || normalized === "*") return normalized;
+      return normalized.startsWith(".") ? normalized : `.${normalized}`;
+    }).filter(Boolean));
+  }
+
+  function rmfDocumentExtension(document) {
+    const name = String(document.file_name || document.title || "");
+    const index = name.lastIndexOf(".");
+    return index < 0 ? "" : name.slice(index).toLowerCase();
+  }
+
+  function rmfImportState(rmfImport, document) {
+    if (!rmfImport) return "not imported";
+    const lifecycle = String(
+      rmfImport.status || rmfImport.lifecycle_status || rmfImport.lifecycleStatus || ""
+    ).toLowerCase();
+    const jobStatus = String(
+      rmfImport.job_status || rmfImport.jobStatus || rmfImport.job?.status || ""
+    ).toLowerCase();
+    if (["queued", "processing", "failed", "withdrawing", "withdrawn", "superseded"].includes(lifecycle)) {
+      return lifecycle;
+    }
+    if (jobStatus === "queued" || jobStatus === "processing" || jobStatus === "failed") {
+      return jobStatus;
+    }
+    const sourceDocumentId =
+      rmfImport.source_document_id || rmfImport.sourceDocumentId || "";
+    return sourceDocumentId === document.id ? "current" : "stale";
+  }
+
+  function rmfClassificationForImport(rmfImport) {
+    if (rmfImport?.extract_topology || rmfImport?.extractTopology) {
+      return "azure-resource-json";
+    }
+    return (rmfImport?.source_type || rmfImport?.sourceType) === "policy"
+      ? "organization-policy"
+      : "observed-evidence";
+  }
+
+  function rmfImportForDocument(imports, document) {
+    const familyId = document.revision_family_id || document.id;
+    const familyImports = imports.filter((item) =>
+      (item.revision_family_id || item.revisionFamilyId) === familyId
+    );
+    const isRetired = (item) => ["superseded", "withdrawn"].includes(String(
+      item.status || item.lifecycle_status || item.lifecycleStatus || ""
+    ).toLowerCase());
+    return familyImports.find((item) =>
+      (item.source_document_id || item.sourceDocumentId) === document.id && !isRetired(item)
+    ) || familyImports.find((item) => !isRetired(item)) || familyImports[0] || null;
+  }
+
+  function appendEvidenceMessage(message, className = "text-muted") {
+    rmfEvidenceRows.replaceChildren();
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 4;
+    cell.className = className;
+    cell.textContent = message;
+    row.appendChild(cell);
+    rmfEvidenceRows.appendChild(row);
+  }
+
+  async function mutateRmfEvidence(path, options) {
+    const response = await fetch(path, options);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || "Unable to update RMF evidence.");
+    return payload;
+  }
+
+  function renderRmfEvidence(documents, imports, supportedExtensions) {
+    rmfEvidenceRows.replaceChildren();
+    if (documents.length === 0) {
+      appendEvidenceMessage("No current documents are available in this workspace.");
+      return;
+    }
+
+    documents.forEach((documentItem) => {
+      const rmfImport = rmfImportForDocument(imports, documentItem);
+      const state = rmfImportState(rmfImport, documentItem);
+      const extension = rmfDocumentExtension(documentItem);
+      const supported = supportedExtensions.has("*") || supportedExtensions.has(extension);
+
+      const row = document.createElement("tr");
+      const nameCell = document.createElement("td");
+      const name = document.createElement("div");
+      name.className = "fw-semibold";
+      name.textContent = documentItem.title || documentItem.file_name || documentItem.id;
+      const revision = document.createElement("div");
+      revision.className = "small text-muted";
+      revision.textContent = `Revision ${documentItem.version ?? "—"} · ${extension || "no extension"}`;
+      nameCell.append(name, revision);
+
+      const classificationCell = document.createElement("td");
+      const classification = document.createElement("select");
+      classification.className = "form-select form-select-sm";
+      classification.setAttribute("aria-label", `RMF classification for ${name.textContent}`);
+      [
+        ["observed-evidence", "Observed Evidence"],
+        ["organization-policy", "Organization Policy"],
+        ["azure-resource-json", "Azure Resource JSON"]
+      ].forEach(([value, label]) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        option.disabled = value === "azure-resource-json" && extension !== ".json";
+        option.selected = value === rmfClassificationForImport(rmfImport);
+        classification.appendChild(option);
+      });
+      classification.disabled = !canManageRmfEvidence || !supported;
+      classificationCell.appendChild(classification);
+
+      const stateCell = document.createElement("td");
+      const badge = document.createElement("span");
+      badge.className = "badge text-bg-light border text-capitalize";
+      badge.textContent = state;
+      stateCell.appendChild(badge);
+      if (!supported) {
+        const note = document.createElement("div");
+        note.className = "small text-muted mt-1";
+        note.textContent = "This format is not listed by RMF capabilities.";
+        stateCell.appendChild(note);
+      }
+
+      const actionCell = document.createElement("td");
+      if (canManageRmfEvidence && supported) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "btn btn-sm btn-outline-primary";
+        const importId = rmfImport?.import_id || rmfImport?.importId || rmfImport?.id;
+        if (state === "withdrawing" && importId) {
+          if (rmfImport?.error) {
+            button.textContent = "Retry withdrawal";
+            button.className = "btn btn-sm btn-outline-danger";
+            button.addEventListener("click", async () => {
+              button.disabled = true;
+              try {
+                const result = await mutateRmfEvidence(
+                  `/api/rmf/workspace/evidence/${encodeURIComponent(importId)}/withdraw`,
+                  {method: "POST"}
+                );
+                await loadRmfEvidence();
+                if (result.job?.id || result.job_id) {
+                  pollRmfEvidenceJob(result.job?.id || result.job_id);
+                }
+              } catch (error) {
+                showRmfError(error.message);
+                button.disabled = false;
+              }
+            });
+          } else {
+            button.textContent = "Withdrawing";
+            button.disabled = true;
+          }
+        } else if (state === "current" && importId) {
+          button.textContent = "Withdraw";
+          button.className = "btn btn-sm btn-outline-danger";
+          button.addEventListener("click", async () => {
+            button.disabled = true;
+            try {
+              const result = await mutateRmfEvidence(
+                `/api/rmf/workspace/evidence/${encodeURIComponent(importId)}/withdraw`,
+                {method: "POST"}
+              );
+              await loadRmfEvidence();
+              if (result.job?.id || result.job_id) {
+                pollRmfEvidenceJob(result.job?.id || result.job_id);
+              }
+            } catch (error) {
+              showRmfError(error.message);
+              button.disabled = false;
+            }
+          });
+        } else if (!["queued", "processing"].includes(state)) {
+          button.textContent =
+            state === "stale" ? "Resync" : state === "failed" ? "Retry" : "Add to RMF";
+          button.addEventListener("click", async () => {
+            button.disabled = true;
+            try {
+              const result = await mutateRmfEvidence("/api/rmf/workspace/evidence", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                  document_id: documentItem.id,
+                  classification: classification.value
+                })
+              });
+              await loadRmfEvidence();
+              if (result.job?.id) {
+                pollRmfEvidenceJob(result.job.id);
+              }
+            } catch (error) {
+              showRmfError(error.message);
+              button.disabled = false;
+            }
+          });
+        } else {
+          button.textContent = state === "queued" ? "Queued" : "Processing";
+          button.disabled = true;
+        }
+        actionCell.appendChild(button);
+        if (state === "stale" && importId) {
+          actionCell.className = "d-flex gap-2";
+          const withdrawButton = document.createElement("button");
+          withdrawButton.type = "button";
+          withdrawButton.className = "btn btn-sm btn-outline-danger";
+          withdrawButton.textContent = "Withdraw";
+          withdrawButton.addEventListener("click", async () => {
+            withdrawButton.disabled = true;
+            try {
+              const result = await mutateRmfEvidence(
+                `/api/rmf/workspace/evidence/${encodeURIComponent(importId)}/withdraw`,
+                {method: "POST"}
+              );
+              await loadRmfEvidence();
+              if (result.job?.id || result.job_id) {
+                pollRmfEvidenceJob(result.job?.id || result.job_id);
+              }
+            } catch (error) {
+              showRmfError(error.message);
+              withdrawButton.disabled = false;
+            }
+          });
+          actionCell.appendChild(withdrawButton);
+        }
+      } else {
+        const text = document.createElement("span");
+        text.className = "text-muted small";
+        text.textContent = canManageRmfEvidence ? "Unavailable" : "View only";
+        actionCell.appendChild(text);
+      }
+
+      row.append(nameCell, classificationCell, stateCell, actionCell);
+      rmfEvidenceRows.appendChild(row);
+    });
+  }
+
+  function showRmfError(message) {
+    const errorBox = document.querySelector("[data-rmf-error]");
+    errorBox.textContent = message;
+    errorBox.classList.remove("d-none");
+  }
+
+  async function loadAllGroupDocuments() {
+    const pageSize = 100;
+    const documents = [];
+    let page = 1;
+    let totalCount = 0;
+    do {
+      const response = await fetch(
+        `/api/group_documents?page=${page}&page_size=${pageSize}&sort_by=title&sort_order=asc`
+      );
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to load workspace documents.");
+      }
+      const pageDocuments = payload.documents || [];
+      documents.push(...pageDocuments);
+      totalCount = Number(payload.total_count || documents.length);
+      page += 1;
+      if (pageDocuments.length === 0) break;
+    } while (documents.length < totalCount);
+    return documents;
+  }
+
+  async function pollRmfEvidenceJob(jobId, retryAttempt = 0) {
+    window.clearTimeout(rmfEvidencePollTimer);
+    try {
+      const response = await fetch(
+        `/api/rmf/workspace/evidence/jobs/${encodeURIComponent(jobId)}`
+      );
+      const job = await response.json();
+      if (!response.ok) {
+        throw new Error(job.error || "Unable to check the RMF evidence job.");
+      }
+      const status = String(job.status || "").toLowerCase();
+      if (status === "queued" || status === "processing") {
+        rmfEvidencePollTimer = window.setTimeout(
+          () => pollRmfEvidenceJob(jobId, 0),
+          3000
+        );
+      } else {
+        await loadRmfEvidence();
+      }
+    } catch (error) {
+      showRmfError(error.message);
+      if (retryAttempt < 5) {
+        const delay = Math.min(30000, 3000 * (2 ** retryAttempt));
+        rmfEvidencePollTimer = window.setTimeout(
+          () => pollRmfEvidenceJob(jobId, retryAttempt + 1),
+          delay
+        );
+      }
+    }
+  }
+
+  async function loadRmfEvidence() {
+    if (!rmfEvidenceRows) return;
+    window.clearTimeout(rmfEvidencePollTimer);
+    appendEvidenceMessage("Loading workspace documents and RMF imports...");
+    try {
+      const [capabilityResponse, evidenceResponse, documents] = await Promise.all([
+        fetch("/api/rmf/workspace/evidence/capabilities"),
+        fetch("/api/rmf/workspace/evidence"),
+        loadAllGroupDocuments()
+      ]);
+      const [capabilities, evidencePayload] = await Promise.all([
+        capabilityResponse.json(),
+        evidenceResponse.json()
+      ]);
+      if (!capabilityResponse.ok) {
+        throw new Error(capabilities.error || "Unable to load RMF evidence capabilities.");
+      }
+      if (!evidenceResponse.ok) {
+        throw new Error(evidencePayload.error || "Unable to load RMF evidence.");
+      }
+      const supportedExtensions = rmfCapabilityExtensions(capabilities);
+      const capabilityStatus = document.querySelector("[data-rmf-evidence-capabilities]");
+      capabilityStatus.textContent = supportedExtensions.size
+        ? `RMF currently accepts: ${Array.from(supportedExtensions).sort().join(", ")}`
+        : "RMF did not report any supported evidence formats.";
+      const imports = rmfImportsFromPayload(evidencePayload);
+      renderRmfEvidence(documents, imports, supportedExtensions);
+      rmfEvidenceLoaded = true;
+
+      const activeImports = imports.filter((item) => {
+        const status = String(
+          item.status || item.job_status || item.jobStatus || item.job?.status || ""
+        ).toLowerCase();
+        return (
+          status === "queued"
+          || status === "processing"
+          || (status === "withdrawing" && !item.error)
+        );
+      });
+      if (activeImports.length) {
+        const jobId = activeImports[0].job_id;
+        if (jobId) {
+          rmfEvidencePollTimer = window.setTimeout(
+            () => pollRmfEvidenceJob(jobId),
+            3000
+          );
+        }
+      }
+    } catch (error) {
+      appendEvidenceMessage(error.message, "text-danger");
+    }
+  }
+
+  function rmfAnalysisJobsFromPayload(payload) {
+    if (Array.isArray(payload)) return payload;
+    return Array.isArray(payload?.jobs) ? payload.jobs : [];
+  }
+
+  function rmfAnalysisScope() {
+    return document.querySelector('input[name="rmf-analysis-scope"]:checked')?.value
+      || "baseline";
+  }
+
+  function setRmfAnalysisError(message = "") {
+    const errorBox = document.querySelector("[data-rmf-analysis-error]");
+    if (!errorBox) return;
+    errorBox.textContent = message;
+    errorBox.classList.toggle("d-none", !message);
+  }
+
+  function updateRmfAnalysisSelectedCount() {
+    setText(
+      "[data-rmf-analysis-selected-count]",
+      `${rmfSelectedControls.size} control${rmfSelectedControls.size === 1 ? "" : "s"} selected`
+    );
+  }
+
+  function renderRmfAnalysisControls() {
+    const container = document.querySelector("[data-rmf-analysis-controls]");
+    if (!container) return;
+    container.replaceChildren();
+    const query = String(document.querySelector("#rmf-analysis-search")?.value || "")
+      .trim()
+      .toLowerCase();
+    const controls = Array.isArray(rmfAnalysisCapabilities?.baseline_controls)
+      ? rmfAnalysisCapabilities.baseline_controls
+      : [];
+    const filtered = controls.filter((control) => {
+      const searchable = [
+        control.control_id,
+        control.title,
+        control.family
+      ].map((value) => String(value || "").toLowerCase()).join(" ");
+      return !query || searchable.includes(query);
+    });
+
+    if (filtered.length === 0) {
+      const message = document.createElement("div");
+      message.className = "small text-muted p-2";
+      message.textContent = controls.length
+        ? "No baseline controls match this search."
+        : "RMF did not return baseline controls.";
+      container.appendChild(message);
+      return;
+    }
+
+    filtered.forEach((control) => {
+      const controlId = String(control.control_id || "").trim();
+      if (!controlId) return;
+      const wrapper = document.createElement("div");
+      wrapper.className = "form-check border-bottom py-2";
+      const checkbox = document.createElement("input");
+      checkbox.className = "form-check-input";
+      checkbox.type = "checkbox";
+      checkbox.id = `rmf-control-${controlId.replace(/[^A-Za-z0-9_-]/g, "-")}`;
+      checkbox.checked = rmfSelectedControls.has(controlId);
+      checkbox.disabled = !canManageRmfAnalysis;
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) {
+          rmfSelectedControls.add(controlId);
+        } else {
+          rmfSelectedControls.delete(controlId);
+        }
+        updateRmfAnalysisSelectedCount();
+        updateRmfAnalysisActions();
+      });
+      const label = document.createElement("label");
+      label.className = "form-check-label d-block";
+      label.setAttribute("for", checkbox.id);
+      const heading = document.createElement("span");
+      heading.className = "fw-semibold";
+      heading.textContent = `${controlId} — ${control.title || "Untitled control"}`;
+      const family = document.createElement("span");
+      family.className = "d-block small text-muted";
+      family.textContent = control.family || "Family not provided";
+      label.append(heading, family);
+      wrapper.append(checkbox, label);
+      container.appendChild(wrapper);
+    });
+  }
+
+  function rmfAnalysisCount(job, key) {
+    const value = Number(job?.[key] ?? 0);
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  function rmfAnalysisElapsed(job) {
+    if (!job?.started_at) return "";
+    const start = new Date(job.started_at).getTime();
+    const end = job.completed_at ? new Date(job.completed_at).getTime() : Date.now();
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return "";
+    const seconds = Math.max(0, Math.floor((end - start) / 1000));
+    const minutes = Math.floor(seconds / 60);
+    const remainder = seconds % 60;
+    return `${minutes}m ${String(remainder).padStart(2, "0")}s`;
+  }
+
+  function rmfAnalysisActiveJob() {
+    return rmfAnalysisJobs.find((job) => {
+      const status = String(job.status || "").toLowerCase();
+      return !rmfAnalysisTerminalStatuses.has(status);
+    }) || null;
+  }
+
+  function updateRmfAnalysisActions() {
+    const activeJob = rmfAnalysisActiveJob();
+    rmfAnalysisActiveJobId = activeJob?.id || null;
+    const startButton = document.querySelector("[data-rmf-analysis-start]");
+    const cancelButton = document.querySelector("[data-rmf-analysis-cancel]");
+    const selectedScope = rmfAnalysisScope() === "selected";
+    if (startButton) {
+      startButton.disabled = Boolean(activeJob) || (selectedScope && !rmfSelectedControls.size);
+    }
+    if (cancelButton) {
+      cancelButton.classList.toggle("d-none", !activeJob);
+      cancelButton.disabled = !activeJob;
+    }
+  }
+
+  function renderRmfAnalysisFailures(job) {
+    const container = document.querySelector("[data-rmf-analysis-failures]");
+    const list = document.querySelector("[data-rmf-analysis-failure-list]");
+    if (!container || !list) return;
+    list.replaceChildren();
+    const failures = Array.isArray(job?.failures) ? job.failures : [];
+    failures.forEach((failure) => {
+      const item = document.createElement("li");
+      if (typeof failure === "string") {
+        item.textContent = failure;
+      } else {
+        const controlId = failure?.control_id || failure?.controlId || "Control";
+        const message = failure?.error || failure?.message || "Analysis failed.";
+        item.textContent = `${controlId}: ${message}`;
+      }
+      list.appendChild(item);
+    });
+    container.classList.toggle("d-none", failures.length === 0);
+  }
+
+  function renderRmfAnalysisJob(job) {
+    if (!job) {
+      setText("[data-rmf-analysis-status]", "No analysis job is active.");
+      setText("[data-rmf-analysis-total]", 0);
+      setText("[data-rmf-analysis-completed]", 0);
+      setText("[data-rmf-analysis-failed]", 0);
+      setText("[data-rmf-analysis-queued]", 0);
+      setText("[data-rmf-analysis-running]", 0);
+      setText("[data-rmf-analysis-current]", "");
+      const progress = document.querySelector("[data-rmf-analysis-progress]");
+      progress.style.width = "0%";
+      progress.parentElement.setAttribute("aria-valuenow", "0");
+      renderRmfAnalysisFailures(null);
+      return;
+    }
+    const status = String(job.status || "unknown").toLowerCase();
+    const total = rmfAnalysisCount(job, "total_controls");
+    const completed = rmfAnalysisCount(job, "completed_controls");
+    const failed = rmfAnalysisCount(job, "failed_controls");
+    const queued = rmfAnalysisCount(job, "queued_controls");
+    const running = rmfAnalysisCount(job, "running_controls");
+    const processed = Math.min(total, completed + failed);
+    const percent = total ? Math.round((processed / total) * 100) : 0;
+    setText("[data-rmf-analysis-status]", `Job ${job.id || ""}: ${status}`);
+    setText("[data-rmf-analysis-total]", total);
+    setText("[data-rmf-analysis-completed]", completed);
+    setText("[data-rmf-analysis-failed]", failed);
+    setText("[data-rmf-analysis-queued]", queued);
+    setText("[data-rmf-analysis-running]", running);
+    setText(
+      "[data-rmf-analysis-current]",
+      job.current_control_id
+        ? `Current control: ${job.current_control_id}`
+          + `${rmfAnalysisElapsed(job) ? ` · Elapsed: ${rmfAnalysisElapsed(job)}` : ""}`
+        : job.error
+          ? `Error: ${job.error}`
+          : rmfAnalysisTerminalStatuses.has(status)
+            ? `Completed ${job.completed_at ? new Date(job.completed_at).toLocaleString() : ""}`
+              + `${rmfAnalysisElapsed(job) ? ` · Elapsed: ${rmfAnalysisElapsed(job)}` : ""}`
+            : `Waiting for the next control.${
+              rmfAnalysisElapsed(job) ? ` Elapsed: ${rmfAnalysisElapsed(job)}` : ""
+            }`
+    );
+    const progress = document.querySelector("[data-rmf-analysis-progress]");
+    progress.style.width = `${percent}%`;
+    progress.parentElement.setAttribute("aria-valuenow", String(percent));
+    renderRmfAnalysisFailures(job);
+  }
+
+  function renderRmfAnalysisHistory() {
+    const history = document.querySelector("[data-rmf-analysis-history]");
+    if (!history) return;
+    history.replaceChildren();
+    if (rmfAnalysisJobs.length === 0) {
+      const row = document.createElement("tr");
+      const cell = document.createElement("td");
+      cell.colSpan = 5;
+      cell.className = "text-muted";
+      cell.textContent = "No analysis jobs have been submitted.";
+      row.appendChild(cell);
+      history.appendChild(row);
+      return;
+    }
+
+    rmfAnalysisJobs.forEach((job) => {
+      const row = document.createElement("tr");
+      const createdCell = document.createElement("td");
+      createdCell.textContent = job.created_at
+        ? new Date(job.created_at).toLocaleString()
+        : "—";
+      const scopeCell = document.createElement("td");
+      const controlCount = Array.isArray(job.control_ids) ? job.control_ids.length : 0;
+      scopeCell.textContent = job.scope === "selected"
+        ? `${controlCount} selected`
+        : "Baseline";
+      const optionsCell = document.createElement("td");
+      const options = [];
+      if (job.deep) options.push("Deep");
+      if (job.fresh) options.push("Fresh");
+      optionsCell.textContent = options.join(", ") || "Standard";
+      const progressCell = document.createElement("td");
+      const completed = rmfAnalysisCount(job, "completed_controls");
+      const failed = rmfAnalysisCount(job, "failed_controls");
+      progressCell.textContent =
+        `${completed + failed}/${rmfAnalysisCount(job, "total_controls")}`;
+      const statusCell = document.createElement("td");
+      const badge = document.createElement("span");
+      badge.className = "badge text-bg-light border text-capitalize";
+      badge.textContent = String(job.status || "unknown").toLowerCase();
+      statusCell.appendChild(badge);
+      row.append(createdCell, scopeCell, optionsCell, progressCell, statusCell);
+      history.appendChild(row);
+    });
+  }
+
+  function renderRmfAnalysis() {
+    const activeJob = rmfAnalysisActiveJob();
+    renderRmfAnalysisJob(activeJob || rmfAnalysisJobs[0] || null);
+    renderRmfAnalysisHistory();
+    updateRmfAnalysisActions();
+  }
+
+  async function pollRmfAnalysisJob(jobId, retryAttempt = 0) {
+    window.clearTimeout(rmfAnalysisPollTimer);
+    try {
+      const response = await fetch(
+        `/api/rmf/workspace/analysis/jobs/${encodeURIComponent(jobId)}`
+      );
+      const job = await response.json();
+      if (!response.ok) {
+        throw new Error(job.error || "Unable to check the RMF analysis job.");
+      }
+      const index = rmfAnalysisJobs.findIndex((item) => item.id === job.id);
+      if (index >= 0) {
+        rmfAnalysisJobs[index] = job;
+      } else {
+        rmfAnalysisJobs.unshift(job);
+      }
+      renderRmfAnalysis();
+      setRmfAnalysisError();
+      const status = String(job.status || "").toLowerCase();
+      if (!rmfAnalysisTerminalStatuses.has(status)) {
+        rmfAnalysisPollTimer = window.setTimeout(
+          () => pollRmfAnalysisJob(jobId, 0),
+          3000
+        );
+      } else {
+        await loadRmfAnalysis();
+        await loadRmfOverview();
+      }
+    } catch (error) {
+      setRmfAnalysisError(error.message);
+      if (retryAttempt < 5) {
+        const delay = Math.min(30000, 3000 * (2 ** retryAttempt));
+        rmfAnalysisPollTimer = window.setTimeout(
+          () => pollRmfAnalysisJob(jobId, retryAttempt + 1),
+          delay
+        );
+      }
+    }
+  }
+
+  async function loadRmfAnalysis() {
+    window.clearTimeout(rmfAnalysisPollTimer);
+    setRmfAnalysisError();
+    try {
+      const [capabilityResponse, analysisResponse] = await Promise.all([
+        fetch("/api/rmf/workspace/analysis/capabilities"),
+        fetch("/api/rmf/workspace/analysis")
+      ]);
+      const [capabilities, analysisPayload] = await Promise.all([
+        capabilityResponse.json(),
+        analysisResponse.json()
+      ]);
+      if (!capabilityResponse.ok) {
+        throw new Error(capabilities.error || "Unable to load analysis capabilities.");
+      }
+      if (!analysisResponse.ok) {
+        throw new Error(analysisPayload.error || "Unable to load analysis history.");
+      }
+      rmfAnalysisCapabilities = capabilities;
+      rmfAnalysisJobs = rmfAnalysisJobsFromPayload(analysisPayload);
+      const capabilityStatus = document.querySelector(
+        "[data-rmf-analysis-capabilities]"
+      );
+      const baselineCount = Array.isArray(capabilities.baseline_controls)
+        ? capabilities.baseline_controls.length
+        : 0;
+      capabilityStatus.textContent =
+        `Impact level ${capabilities.impact_level}; ${baselineCount} baseline controls; `
+        + `up to ${capabilities.active_job_limit ?? 1} active job.`;
+      const deepInput = document.querySelector("[data-rmf-analysis-deep]");
+      const freshInput = document.querySelector("[data-rmf-analysis-fresh]");
+      deepInput.disabled = !canManageRmfAnalysis || capabilities.supports_deep === false;
+      freshInput.disabled = !canManageRmfAnalysis || capabilities.supports_fresh === false;
+      if (capabilities.supports_deep === false) deepInput.checked = false;
+      if (capabilities.supports_fresh === false) freshInput.checked = false;
+      renderRmfAnalysisControls();
+      renderRmfAnalysis();
+      rmfAnalysisLoaded = true;
+      const activeJob = rmfAnalysisActiveJob();
+      if (activeJob?.id) {
+        rmfAnalysisPollTimer = window.setTimeout(
+          () => pollRmfAnalysisJob(activeJob.id),
+          3000
+        );
+      }
+    } catch (error) {
+      setRmfAnalysisError(error.message);
+    }
+  }
+
+  async function mutateRmfAnalysis(path, options) {
+    const response = await fetch(path, options);
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.error || "Unable to update RMF analysis.");
+    }
+    return payload;
+  }
+
+  function setRmfControlsError(message = "") {
+    const errorBox = document.querySelector("[data-rmf-controls-error]");
+    if (!errorBox) return;
+    errorBox.textContent = message;
+    errorBox.classList.toggle("d-none", !message);
+  }
+
+  function rmfControlBadge(state) {
+    const badge = document.createElement("span");
+    badge.className = "badge text-bg-light border text-capitalize";
+    badge.textContent = String(state || "not-analyzed").replaceAll("-", " ");
+    return badge;
+  }
+
+  function renderRmfControlsFacets(facets) {
+    const select = document.querySelector("[data-rmf-controls-family]");
+    if (!select) return;
+    const selected = select.value;
+    select.replaceChildren();
+    const all = document.createElement("option");
+    all.value = "";
+    all.textContent = "All families";
+    select.appendChild(all);
+    (Array.isArray(facets?.families) ? facets.families : []).forEach((family) => {
+      const option = document.createElement("option");
+      option.value = family;
+      option.textContent = family;
+      option.selected = family === selected;
+      select.appendChild(option);
+    });
+  }
+
+  function renderRmfControls(payload) {
+    const rows = document.querySelector("[data-rmf-controls-rows]");
+    rows.replaceChildren();
+    const items = Array.isArray(payload?.items) ? payload.items : [];
+    if (!items.length) {
+      const row = document.createElement("tr");
+      const cell = document.createElement("td");
+      cell.colSpan = 6;
+      cell.className = "text-muted";
+      cell.textContent = "No baseline controls match these filters.";
+      row.appendChild(cell);
+      rows.appendChild(row);
+    }
+    items.forEach((control) => {
+      const row = document.createElement("tr");
+      row.tabIndex = 0;
+      row.role = "button";
+      const open = () => loadRmfControlDetail(control.control_id);
+      row.addEventListener("click", open);
+      row.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          open();
+        }
+      });
+      const controlCell = document.createElement("td");
+      const heading = document.createElement("div");
+      heading.className = "fw-semibold";
+      heading.textContent = `${control.control_id} — ${control.title}`;
+      const family = document.createElement("div");
+      family.className = "small text-muted";
+      family.textContent = control.family;
+      controlCell.append(heading, family);
+      const statusCell = document.createElement("td");
+      const statusText = document.createElement("div");
+      statusText.textContent = control.implementation_status
+        ? String(control.implementation_status).replaceAll("-", " ")
+        : "—";
+      statusCell.appendChild(statusText);
+      if (control.applicability_state) {
+        const applicability = document.createElement("div");
+        applicability.className = "small text-muted";
+        applicability.textContent = `Applicability: ${
+          String(control.applicability_state).replaceAll("-", " ")
+        }`;
+        statusCell.appendChild(applicability);
+      }
+      const stateCell = document.createElement("td");
+      stateCell.appendChild(rmfControlBadge(control.analysis_state));
+      const confidenceCell = document.createElement("td");
+      confidenceCell.textContent = control.confidence == null
+        ? "—"
+        : `${Math.round(Number(control.confidence) * 100)}%`;
+      const gapCell = document.createElement("td");
+      gapCell.textContent = String(control.gap_count ?? 0);
+      const citationCell = document.createElement("td");
+      citationCell.textContent = String(control.citation_count ?? 0);
+      row.append(
+        controlCell,
+        statusCell,
+        stateCell,
+        confidenceCell,
+        gapCell,
+        citationCell
+      );
+      rows.appendChild(row);
+    });
+    rmfControlsTotal = Number(payload?.total || 0);
+    rmfControlsPage = Number(payload?.page || 1);
+    const first = rmfControlsTotal ? ((rmfControlsPage - 1) * rmfControlsPageSize) + 1 : 0;
+    const last = Math.min(rmfControlsTotal, rmfControlsPage * rmfControlsPageSize);
+    setText("[data-rmf-controls-page]", `${first}–${last} of ${rmfControlsTotal}`);
+    const previous = document.querySelector("[data-rmf-controls-previous]");
+    const next = document.querySelector("[data-rmf-controls-next]");
+    previous.disabled = rmfControlsPage <= 1;
+    next.disabled = last >= rmfControlsTotal;
+    renderRmfControlsFacets(payload?.facets);
+  }
+
+  async function loadRmfControls(page = 1) {
+    const requestId = ++rmfControlsRequestId;
+    const params = new URLSearchParams({
+      page: String(page),
+      page_size: String(rmfControlsPageSize)
+    });
+    const filters = {
+      query: document.querySelector("#rmf-controls-search")?.value.trim() || "",
+      family: document.querySelector("[data-rmf-controls-family]")?.value || "",
+      state: document.querySelector("[data-rmf-controls-state]")?.value || "",
+      status: document.querySelector("[data-rmf-controls-status]")?.value || ""
+    };
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+    });
+    if (document.querySelector("[data-rmf-controls-gaps]")?.checked) {
+      params.set("has_gaps", "true");
+    }
+    setRmfControlsError();
+    try {
+      const response = await fetch(`/api/rmf/workspace/controls?${params.toString()}`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Unable to load RMF controls.");
+      if (requestId !== rmfControlsRequestId) return;
+      renderRmfControls(payload);
+      rmfControlsLoaded = true;
+    } catch (error) {
+      if (requestId !== rmfControlsRequestId) return;
+      setRmfControlsError(error.message);
+    }
+  }
+
+  function appendRmfControlList(container, values, emptyMessage) {
+    container.replaceChildren();
+    if (!values.length) {
+      const item = document.createElement("li");
+      item.className = "text-muted";
+      item.textContent = emptyMessage;
+      container.appendChild(item);
+      return;
+    }
+    values.forEach((value) => {
+      const item = document.createElement("li");
+      item.textContent = value;
+      container.appendChild(item);
+    });
+  }
+
+  function renderRmfApplicability(applicability) {
+    const current = applicability?.current || null;
+    rmfCurrentApplicability = current;
+    const state = current?.state || "";
+    setText(
+      "[data-rmf-applicability-state]",
+      state ? state.replaceAll("-", " ") : "Not reviewed"
+    );
+    const descriptions = {
+      candidate: "AI recommends Not Applicable. A manager must review the cited scope evidence.",
+      approved: "A manager approved this control as Not Applicable. Normal analysis reuses this decision.",
+      rejected: "A manager rejected the Not Applicable recommendation for this evidence state."
+    };
+    setText(
+      "[data-rmf-applicability-description]",
+      descriptions[state] || "No applicability determination has been recorded."
+    );
+    const currentBox = document.querySelector("[data-rmf-applicability-current]");
+    currentBox?.classList.toggle("d-none", !current);
+    setText("[data-rmf-applicability-rationale]", current?.rationale || "");
+    setText(
+      "[data-rmf-applicability-metadata]",
+      current
+        ? [
+          current.actor ? `Actor: ${current.actor}` : "",
+          current.proposer ? `Proposed by: ${current.proposer}` : "",
+          current.updated_at ? new Date(current.updated_at).toLocaleString() : ""
+        ].filter(Boolean).join(" · ")
+        : ""
+    );
+    const citations = document.querySelector("[data-rmf-applicability-citations]");
+    citations?.replaceChildren();
+    (Array.isArray(current?.citations) ? current.citations : []).forEach((citation) => {
+      const item = document.createElement("div");
+      item.className = "small border rounded p-2";
+      const source = citation.source || citation.evidence_id || "Evidence";
+      const location = citation.section ? ` · ${citation.section}` : "";
+      item.textContent = `${source}${location}: ${citation.snippet || "No excerpt recorded."}`;
+      citations.appendChild(item);
+    });
+    const input = document.querySelector("[data-rmf-applicability-input]");
+    if (input) input.value = current?.rationale || "";
+    document.querySelector("[data-rmf-applicability-approve]")?.classList.toggle(
+      "d-none",
+      state !== "candidate"
+    );
+    document.querySelector("[data-rmf-applicability-reject]")?.classList.toggle(
+      "d-none",
+      state !== "candidate"
+    );
+    document.querySelector("[data-rmf-applicability-direct]")?.classList.toggle(
+      "d-none",
+      state === "candidate" || state === "approved"
+    );
+    document.querySelector("[data-rmf-applicability-revoke]")?.classList.toggle(
+      "d-none",
+      state !== "approved"
+    );
+
+    const history = document.querySelector("[data-rmf-applicability-history]");
+    history?.replaceChildren();
+    const entries = Array.isArray(applicability?.history) ? applicability.history : [];
+    if (!entries.length) {
+      const empty = document.createElement("div");
+      empty.className = "small text-muted";
+      empty.textContent = "No applicability actions have been recorded.";
+      history?.appendChild(empty);
+    }
+    entries.forEach((entry) => {
+      const item = document.createElement("div");
+      item.className = "small border rounded p-2";
+      const actor = entry.actor || entry.proposer || "system";
+      item.textContent = `${new Date(entry.created_at).toLocaleString()} · `
+        + `${String(entry.state || "").replaceAll("-", " ")} · ${actor}`
+        + `${entry.rationale ? ` · ${entry.rationale}` : ""}`;
+      history?.appendChild(item);
+    });
+  }
+
+  function setRmfApplicabilityError(message = "") {
+    const errorBox = document.querySelector("[data-rmf-applicability-error]");
+    if (!errorBox) return;
+    errorBox.textContent = message;
+    errorBox.classList.toggle("d-none", !message);
+  }
+
+  async function submitRmfApplicability(action) {
+    if (!canManageRmfAnalysis || !rmfSelectedControlId) return;
+    const rationale = document.querySelector("[data-rmf-applicability-input]")?.value.trim()
+      || "";
+    if (action !== "revoke" && !rationale) {
+      setRmfApplicabilityError("Enter a reviewer rationale.");
+      return;
+    }
+    const payload = {action, rationale};
+    if (rmfCurrentApplicability?.state === "candidate") {
+      payload.candidate_fingerprint = rmfCurrentApplicability.fingerprint;
+    }
+    setRmfApplicabilityError();
+    try {
+      const response = await fetch(
+        `/api/rmf/workspace/controls/${
+          encodeURIComponent(rmfSelectedControlId)
+        }/applicability`,
+        {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(payload)
+        }
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Unable to update applicability.");
+      }
+      renderRmfControlDetail(result);
+      await Promise.all([loadRmfControls(rmfControlsPage), loadRmfOverview()]);
+    } catch (error) {
+      setRmfApplicabilityError(error.message);
+    }
+  }
+
+  function renderRmfControlDetail(detail) {
+    rmfSelectedControlId = detail.control?.control_id || null;
+    document.querySelector("[data-rmf-control-detail-empty]")?.classList.add("d-none");
+    document.querySelector("[data-rmf-control-detail-content]")?.classList.remove("d-none");
+    setText(
+      "[data-rmf-control-family]",
+      `${detail.control?.family || ""} · ${detail.control?.control_id || ""}`
+    );
+    setText("[data-rmf-control-title]", detail.control?.title || "Control");
+    setText("[data-rmf-control-state]", String(detail.analysis_state || "").replaceAll("-", " "));
+    setText(
+      "[data-rmf-control-generated]",
+      detail.generated_at
+        ? `Generated ${new Date(detail.generated_at).toLocaleString()}${
+          detail.deep ? " · Deep" : ""
+        }${detail.fresh ? " · Fresh" : ""}`
+        : "This control has not been analyzed."
+    );
+    setText("[data-rmf-control-statement]", detail.control?.statement || "No statement provided.");
+    const response = detail.response;
+    setText(
+      "[data-rmf-control-implementation]",
+      response?.implementation_statement || "No implementation draft is available."
+    );
+    setText("[data-rmf-control-status]", response?.status?.replaceAll("-", " ") || "—");
+    setText(
+      "[data-rmf-control-confidence]",
+      response?.confidence == null ? "—" : `${Math.round(response.confidence * 100)}%`
+    );
+    setText("[data-rmf-control-role]", response?.responsible_role || "Not assigned");
+    setText("[data-rmf-control-inheritance]", response?.inheritance || "None stated");
+    setText("[data-rmf-control-provenance]", response?.provenance || "—");
+    setText("[data-rmf-control-rationale]", response?.rationale || "No rationale provided.");
+    renderRmfApplicability(detail.applicability);
+    appendRmfControlList(
+      document.querySelector("[data-rmf-control-gaps-list]"),
+      Array.isArray(response?.unmet_requirements) ? response.unmet_requirements : [],
+      "No unmet requirements were recorded."
+    );
+
+    const citations = document.querySelector("[data-rmf-control-citations]");
+    citations.replaceChildren();
+    const citationItems = Array.isArray(detail.citations) ? detail.citations : [];
+    if (!citationItems.length) {
+      const message = document.createElement("div");
+      message.className = "small text-muted";
+      message.textContent = "No citations were recorded.";
+      citations.appendChild(message);
+    }
+    citationItems.forEach((citation) => {
+      const card = document.createElement("div");
+      card.className = "border rounded p-2";
+      const title = document.createElement("div");
+      title.className = "fw-semibold small";
+      title.textContent = citation.title || citation.source || citation.evidence_id;
+      const metadata = document.createElement("div");
+      metadata.className = "small text-muted";
+      const location = [
+        citation.source_type,
+        citation.page == null ? "" : `page ${citation.page}`,
+        citation.section || "",
+        citation.status
+      ].filter(Boolean);
+      metadata.textContent = location.join(" · ");
+      const snippet = document.createElement("div");
+      snippet.className = "small mt-1";
+      snippet.textContent = citation.snippet || "No excerpt recorded.";
+      card.append(title, metadata, snippet);
+      citations.appendChild(card);
+    });
+
+    const history = document.querySelector("[data-rmf-control-history]");
+    history.replaceChildren();
+    const entries = Array.isArray(detail.history) ? detail.history : [];
+    if (!entries.length) {
+      const message = document.createElement("div");
+      message.className = "small text-muted";
+      message.textContent = "No generated history is available.";
+      history.appendChild(message);
+    }
+    entries.forEach((entry) => {
+      const item = document.createElement("div");
+      item.className = "border rounded p-2 small";
+      const status = entry.response?.status
+        ? String(entry.response.status).replaceAll("-", " ")
+        : "unknown";
+      const options = [entry.deep ? "Deep" : "", entry.fresh ? "Fresh" : ""]
+        .filter(Boolean)
+        .join(", ");
+      item.textContent = `${new Date(entry.generated_at).toLocaleString()} · ${status}`
+        + `${entry.is_current ? " · current evidence" : " · stale evidence"}`
+        + `${options ? ` · ${options}` : ""}`;
+      history.appendChild(item);
+    });
+  }
+
+  async function loadRmfControlDetail(controlId) {
+    try {
+      const response = await fetch(
+        `/api/rmf/workspace/controls/${encodeURIComponent(controlId)}`
+      );
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Unable to load the RMF control.");
+      renderRmfControlDetail(payload);
+    } catch (error) {
+      setRmfControlsError(error.message);
+    }
+  }
+
+  async function prepareRmfAnalysisControl(controlId) {
+    if (!canManageRmfAnalysis || !controlId) return;
+    if (!rmfAnalysisLoaded) await loadRmfAnalysis();
+    rmfSelectedControls.clear();
+    rmfSelectedControls.add(controlId);
+    const selectedScope = document.querySelector("#rmf-analysis-selected");
+    selectedScope.checked = true;
+    selectedScope.dispatchEvent(new Event("change"));
+    renderRmfAnalysisControls();
+    updateRmfAnalysisSelectedCount();
+    document.getElementById("rmf-analysis-tab")?.click();
+  }
+
+  function setRmfAttestationError(message = "") {
+    const box = document.querySelector("[data-rmf-attestation-error]");
+    if (!box) return;
+    box.textContent = message;
+    box.classList.toggle("d-none", !message);
+  }
+
+  function rmfAttestationControls() {
+    const includeAll = document.querySelector("[data-rmf-attestation-all]")?.checked;
+    const controls = includeAll && Array.isArray(rmfAttestationCapabilities?.baseline_controls)
+      ? rmfAttestationCapabilities.baseline_controls
+      : rmfAttestationCapabilities?.eligible_controls;
+    return Array.isArray(controls) ? controls : [];
+  }
+
+  function renderRmfAttestationControls() {
+    const container = document.querySelector("[data-rmf-attestation-controls]");
+    if (!container) return;
+    container.replaceChildren();
+    const controls = rmfAttestationControls();
+    if (!controls.length) {
+      const message = document.createElement("div");
+      message.className = "small text-muted";
+      message.textContent = "No controls currently require owner attestation.";
+      container.appendChild(message);
+      return;
+    }
+    controls.forEach((control) => {
+      const row = document.createElement("div");
+      row.className = "form-check";
+      const checkbox = document.createElement("input");
+      const controlId = String(control.control_id || "");
+      checkbox.type = "checkbox";
+      checkbox.className = "form-check-input";
+      checkbox.id = `rmf-attest-${controlId.replace(/[^A-Za-z0-9_-]/g, "-")}`;
+      checkbox.checked = rmfAttestationSelectedControls.has(controlId);
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) rmfAttestationSelectedControls.add(controlId);
+        else rmfAttestationSelectedControls.delete(controlId);
+      });
+      const label = document.createElement("label");
+      label.className = "form-check-label small";
+      label.htmlFor = checkbox.id;
+      const gaps = Array.isArray(control.gaps)
+        ? control.gaps.length
+        : (Array.isArray(control.unmet_requirements)
+          ? control.unmet_requirements.length
+          : (control.gap_count || 0));
+      label.textContent = `${controlId} — ${control.title || "Control"}`
+        + ` (${String(control.analysis_status || control.status || "not analyzed")
+          .replaceAll("-", " ")}${gaps ? `, ${gaps} gap(s)` : ""})`;
+      row.append(checkbox, label);
+      container.appendChild(row);
+    });
+  }
+
+  function renderRmfAttestationSessions() {
+    const container = document.querySelector("[data-rmf-attestation-sessions]");
+    if (!container) return;
+    container.replaceChildren();
+    if (!rmfAttestationSessions.length) {
+      const message = document.createElement("div");
+      message.className = "small text-muted";
+      message.textContent = "No attestation sessions have been started.";
+      container.appendChild(message);
+      return;
+    }
+    rmfAttestationSessions.forEach((session) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn btn-outline-secondary text-start";
+      if (session.id === rmfAttestationCurrent?.id) button.classList.add("active");
+      const completed = session.completed_controls?.length
+        ?? session.completed_count
+        ?? 0;
+      const skipped = session.skipped_controls?.length ?? 0;
+      const interviewable = session.control_ids?.length
+        ?? Math.max(0, (session.total_controls ?? 0) - skipped);
+      button.textContent = `${String(session.status || "active").replaceAll("-", " ")} · `
+        + `${completed}/${interviewable} interviewed`
+        + `${skipped ? ` · ${skipped} skipped` : ""} · `
+        + `${session.requested_by || "unknown requester"}`;
+      button.addEventListener("click", () => loadRmfAttestationSession(session.id));
+      container.appendChild(button);
+    });
+  }
+
+  function appendRmfAttestationTranscript(session) {
+    const container = document.querySelector("[data-rmf-attestation-transcript]");
+    container.replaceChildren();
+    const entries = (Array.isArray(session.controls)
+      ? session.controls
+      : (Array.isArray(session.history) ? session.history : []))
+      .filter((entry) => Array.isArray(entry.turns) && entry.turns.length);
+    if (!entries.length) {
+      const message = document.createElement("div");
+      message.className = "small text-muted";
+      message.textContent = "No completed answers yet.";
+      container.appendChild(message);
+      return;
+    }
+    entries.forEach((entry) => {
+      const card = document.createElement("div");
+      card.className = "border rounded p-3";
+      const heading = document.createElement("div");
+      heading.className = "fw-semibold";
+      const applicabilityOutcome = String(entry.applicability || "");
+      const applicabilityState = String(entry.applicability_state || "");
+      const applicabilityPending = rmfAttestationApplicabilityPending(entry);
+      const outcome = applicabilityPending
+        ? (applicabilityOutcome === "likely-not-applicable"
+          ? "likely not applicable — review required"
+          : "applicability review required")
+        : (applicabilityState === "approved"
+          ? "not applicable approved"
+          : (applicabilityState === "rejected"
+            ? "applicability candidate rejected"
+        : (applicabilityOutcome === "likely-not-applicable"
+          ? "likely not applicable"
+          : String(entry.verdict || entry.status || "in progress").replaceAll("_", " "))));
+      heading.textContent = `${entry.control_id || "Control"} · `
+        + outcome;
+      card.appendChild(heading);
+      const turns = Array.isArray(entry.turns) ? entry.turns : [];
+      turns.forEach((turn) => {
+        const question = document.createElement("div");
+        question.className = "small mt-2";
+        question.textContent = `Q: ${turn.question || turn.q || ""}`;
+        const answer = document.createElement("div");
+        answer.className = "small text-pre-wrap";
+        answer.textContent = `A: ${turn.answer || turn.a || ""}`;
+        const actor = document.createElement("div");
+        actor.className = "small text-muted";
+        actor.textContent = [
+          turn.answered_by || turn.actor,
+          turn.answered_at
+        ].filter(Boolean).join(" · ");
+        card.append(question, answer, actor);
+      });
+      if (entry.rationale) {
+        const rationale = document.createElement("div");
+        rationale.className = "small mt-2";
+        rationale.textContent = `Assessment: ${entry.rationale}`;
+        card.appendChild(rationale);
+      }
+      if (entry.gap) {
+        const gap = document.createElement("div");
+        gap.className = "small text-warning-emphasis mt-1";
+        gap.textContent = `Remaining gap: ${entry.gap}`;
+        card.appendChild(gap);
+      }
+      if (entry.applicability_rationale) {
+        const applicability = document.createElement("div");
+        applicability.className = "small text-info-emphasis mt-2";
+        applicability.textContent = `Applicability: ${entry.applicability_rationale}`;
+        card.appendChild(applicability);
+      }
+      if (entry.applicability_candidate_created && entry.control_id) {
+        const review = document.createElement("button");
+        review.type = "button";
+        review.className = "btn btn-sm btn-outline-primary mt-2";
+        review.textContent = applicabilityPending
+          ? "Review applicability in Controls"
+          : "View applicability in Controls";
+        review.addEventListener("click", () => {
+          openRmfAttestationApplicability(entry.control_id);
+        });
+        card.appendChild(review);
+      }
+      container.appendChild(card);
+    });
+  }
+
+  function rmfAttestationApplicabilityPending(entry) {
+    if (Object.prototype.hasOwnProperty.call(entry, "applicability_state")) {
+      return entry.applicability_state === "candidate";
+    }
+    return Boolean(entry.applicability_candidate_created);
+  }
+
+  function rmfAttestationBlocksAnalysis(entry) {
+    if (Object.prototype.hasOwnProperty.call(entry, "applicability_state")) {
+      return ["candidate", "approved"].includes(entry.applicability_state);
+    }
+    return Boolean(entry.applicability_candidate_created);
+  }
+
+  function rmfAttestationEligibleAnalysisControls(session) {
+    const blockedControls = new Set(
+      (Array.isArray(session?.history) ? session.history : [])
+        .filter(rmfAttestationBlocksAnalysis)
+        .map((item) => item.control_id)
+    );
+    const completed = Array.isArray(session?.completed_controls)
+      ? session.completed_controls
+      : (Array.isArray(session?.controls)
+        ? session.controls
+          .filter((item) => item.verdict || item.status === "completed")
+          .map((item) => item.control_id)
+        : []);
+    return completed.filter(
+      (controlId) => controlId && !blockedControls.has(controlId)
+    );
+  }
+
+  async function openRmfAttestationApplicability(controlId) {
+    if (!controlId) return;
+    document.getElementById("rmf-controls-tab")?.click();
+    if (!rmfControlsLoaded) await loadRmfControls();
+    await loadRmfControlDetail(controlId);
+  }
+
+  function renderRmfAttestationSession(session) {
+    rmfAttestationCurrent = session;
+    document.querySelector("[data-rmf-attestation-empty]")?.classList.add("d-none");
+    document.querySelector("[data-rmf-attestation-detail]")?.classList.remove("d-none");
+    setText("[data-rmf-attestation-session-id]", session.id || "");
+    setText(
+      "[data-rmf-attestation-title]",
+      `Collaborative ${session.scope || "gap-driven"} interview`
+    );
+    setText(
+      "[data-rmf-attestation-status]",
+      String(session.status || "active").replaceAll("-", " ")
+    );
+    const completed = session.completed_controls?.length ?? session.completed_count ?? 0;
+    const skipped = session.skipped_controls?.length ?? 0;
+    const interviewable = session.control_ids?.length
+      ?? Math.max(0, (session.total_controls ?? 0) - skipped);
+    const participants = Array.isArray(session.participants)
+      ? session.participants.filter(Boolean)
+      : [];
+    setText(
+      "[data-rmf-attestation-progress]",
+      `${completed} of ${interviewable} interviewable controls completed`
+      + `${skipped ? ` · ${skipped} skipped by gap eligibility` : ""}`
+      + `${participants.length ? ` · participants: ${participants.join(", ")}` : ""}`
+    );
+    const current = session.current_turn;
+    const currentBox = document.querySelector("[data-rmf-attestation-current]");
+    currentBox?.classList.toggle("d-none", !current);
+    setText(
+      "[data-rmf-attestation-control]",
+      current ? `${current.control_id || session.current_control_id || "Control"}` : ""
+    );
+    setText("[data-rmf-attestation-question]", current?.question || "");
+    const answer = document.querySelector("[data-rmf-attestation-answer]");
+    if (answer) {
+      answer.value = current?.answer || "";
+      answer.disabled = !current || current.status !== "pending";
+    }
+    const submit = document.querySelector("[data-rmf-attestation-submit]");
+    if (submit) {
+      submit.disabled = !current || !["pending", "judging"].includes(current.status);
+      submit.textContent = current?.status === "judging"
+        ? "Retry assessment"
+        : "Submit answer";
+    }
+    const terminal = ["completed", "cancelled"].includes(session.status);
+    const next = document.querySelector("[data-rmf-attestation-next]");
+    next?.classList.toggle("d-none", terminal || Boolean(current));
+    const cancel = document.querySelector("[data-rmf-attestation-cancel]");
+    cancel?.classList.toggle("d-none", !canManageRmfAnalysis || terminal);
+    const analyze = document.querySelector("[data-rmf-attestation-analyze]");
+    analyze?.classList.toggle(
+      "d-none",
+      !canManageRmfAnalysis
+        || !rmfAttestationEligibleAnalysisControls(session).length
+    );
+    appendRmfAttestationTranscript(session);
+    renderRmfAttestationSessions();
+    setRmfAttestationError(session.error || "");
+  }
+
+  async function loadRmfAttestationSession(sessionId) {
+    setRmfAttestationError();
+    try {
+      const response = await fetch(
+        `/api/rmf/workspace/attestations/sessions/${encodeURIComponent(sessionId)}`
+      );
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Unable to load interview.");
+      renderRmfAttestationSession(payload);
+    } catch (error) {
+      setRmfAttestationError(error.message);
+    }
+  }
+
+  async function loadRmfAttestations() {
+    setRmfAttestationError();
+    try {
+      const [capabilityResponse, sessionResponse] = await Promise.all([
+        fetch("/api/rmf/workspace/attestations/capabilities"),
+        fetch("/api/rmf/workspace/attestations/sessions")
+      ]);
+      const [capabilities, sessionsPayload] = await Promise.all([
+        capabilityResponse.json(),
+        sessionResponse.json()
+      ]);
+      if (!capabilityResponse.ok) {
+        throw new Error(capabilities.error || "Unable to load attestation capabilities.");
+      }
+      if (!sessionResponse.ok) {
+        throw new Error(sessionsPayload.error || "Unable to load interview sessions.");
+      }
+      rmfAttestationCapabilities = capabilities;
+      rmfAttestationSessions = Array.isArray(sessionsPayload)
+        ? sessionsPayload
+        : (sessionsPayload.sessions || []);
+      renderRmfAttestationControls();
+      renderRmfAttestationSessions();
+      rmfAttestationsLoaded = true;
+      if (rmfAttestationCurrent?.id) {
+        await loadRmfAttestationSession(rmfAttestationCurrent.id);
+      } else if (rmfAttestationSessions[0]?.id) {
+        await loadRmfAttestationSession(rmfAttestationSessions[0].id);
+      }
+    } catch (error) {
+      setRmfAttestationError(error.message);
+    }
+  }
+
+  async function mutateRmfAttestation(path, payload) {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      if (response.status === 409 && rmfAttestationCurrent?.id) {
+        await loadRmfAttestationSession(rmfAttestationCurrent.id);
+      }
+      throw new Error(result.error || "Unable to update the attestation session.");
+    }
+    renderRmfAttestationSession(result);
+    await Promise.all([loadRmfOverview(), loadRmfAttestations()]);
+    return result;
+  }
+
+  async function startRmfAttestationSession() {
+    const scope = document.querySelector(
+      'input[name="rmf-attestation-scope"]:checked'
+    )?.value || "baseline";
+    const controlIds = scope === "selected"
+      ? Array.from(rmfAttestationSelectedControls)
+      : [];
+    if (scope === "selected" && !controlIds.length) {
+      setRmfAttestationError("Select at least one control.");
+      return;
+    }
+    const session = await mutateRmfAttestation(
+      "/api/rmf/workspace/attestations/sessions",
+      {
+        scope,
+        control_ids: controlIds,
+        all_controls: document.querySelector("[data-rmf-attestation-all]")?.checked || false
+      }
+    );
+    if (session?.id && !session.current_turn && !["completed", "cancelled"].includes(
+      session.status
+    )) {
+      await mutateRmfAttestation(
+        `/api/rmf/workspace/attestations/sessions/${
+          encodeURIComponent(session.id)
+        }/next`,
+        {revision: session.revision}
+      );
+    }
+  }
+
+  function prepareRmfAnalysisFromAttestation() {
+    if (!canManageRmfAnalysis || !rmfAttestationCurrent) return;
+    rmfSelectedControls.clear();
+    rmfAttestationEligibleAnalysisControls(rmfAttestationCurrent)
+      .forEach((controlId) => rmfSelectedControls.add(controlId));
+    if (!rmfSelectedControls.size) return;
+    document.querySelector("#rmf-analysis-selected").checked = true;
+    renderRmfAnalysisControls();
+    updateRmfAnalysisSelectedCount();
+    document.getElementById("rmf-analysis-tab")?.click();
+  }
+
+  function rmfExportArray(payload, keys) {
+    if (Array.isArray(payload)) return payload;
+    for (const key of keys) {
+      if (Array.isArray(payload?.[key])) return payload[key];
+    }
+    return [];
+  }
+
+  function rmfExportTemplateId(item) {
+    return String(item?.id || "");
+  }
+
+  function rmfExportVersionId(item) {
+    return String(item?.id || "");
+  }
+
+  function rmfExportIsTerminal(job) {
+    return rmfExportTerminalStatuses.has(String(job?.status || "").toLowerCase());
+  }
+
+  function rmfExportIsSuccessful(job) {
+    return ["succeeded", "completed", "complete"].includes(
+      String(job?.status || "").toLowerCase()
+    );
+  }
+
+  function setRmfExportError(message, selector = "[data-rmf-export-error]") {
+    const element = document.querySelector(selector);
+    if (!element) return;
+    element.textContent = message || "";
+    element.classList.toggle("d-none", !message);
+  }
+
+  function rmfExportMetadataLine(version) {
+    const parts = [];
+    const uploader = version?.uploaded_by || version?.uploader || version?.created_by;
+    const created = version?.created_at || version?.uploaded_at;
+    const digest = version?.sha256 || version?.digest || version?.fingerprint;
+    if (uploader) parts.push(`Uploaded by ${uploader}`);
+    if (created) parts.push(new Date(created).toLocaleString());
+    if (digest) parts.push(`Digest ${String(digest).slice(0, 16)}…`);
+    return parts.join(" · ");
+  }
+
+  function renderRmfExportTemplates() {
+    const container = document.querySelector("[data-rmf-export-templates]");
+    const selector = document.querySelector("[data-rmf-export-selector]");
+    if (!container || !selector) return;
+    container.replaceChildren();
+    selector.replaceChildren();
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Select an active template";
+    selector.appendChild(placeholder);
+
+    if (!rmfExportTemplates.length) {
+      const empty = document.createElement("div");
+      empty.className = "text-muted";
+      empty.textContent = "No reusable templates have been uploaded.";
+      container.appendChild(empty);
+    }
+
+    const families = new Map();
+    rmfExportTemplates.forEach((version) => {
+      const familyId = String(version.family_id || "");
+      if (!families.has(familyId)) {
+        families.set(familyId, {
+          name: version.family_name || "Unnamed template",
+          versions: []
+        });
+      }
+      families.get(familyId).versions.push(version);
+    });
+
+    families.forEach((family) => {
+      const card = document.createElement("div");
+      card.className = "border rounded p-3";
+      const heading = document.createElement("div");
+      heading.className = "fw-semibold";
+      const templateName = family.name;
+      const headingText = document.createElement("span");
+      headingText.textContent = templateName;
+      heading.appendChild(headingText);
+      card.appendChild(heading);
+
+      family.versions.sort((left, right) => Number(right.version) - Number(left.version));
+      family.versions.forEach((version) => {
+        const row = document.createElement("div");
+        row.className = "border-top mt-2 pt-2";
+        const titleRow = document.createElement("div");
+        titleRow.className = "d-flex justify-content-between gap-2";
+        const title = document.createElement("span");
+        const versionLabel = `Version ${version.version}`;
+        title.textContent = `${versionLabel} · ${version.status}`;
+        const detailButton = document.createElement("button");
+        detailButton.type = "button";
+        detailButton.className = "btn btn-sm btn-link p-0";
+        detailButton.textContent = "View details";
+        detailButton.addEventListener(
+          "click",
+          () => loadRmfExportTemplateDetail(rmfExportVersionId(version))
+        );
+        titleRow.append(title, detailButton);
+        row.appendChild(titleRow);
+        const metadata = document.createElement("div");
+        metadata.className = "small text-muted";
+        metadata.textContent = rmfExportMetadataLine(version);
+        row.appendChild(metadata);
+        const profile = version.profile;
+        if (profile) {
+          const summary = document.createElement("div");
+          summary.className = "small text-muted";
+          summary.textContent =
+            `${profile.sheet}, header row ${profile.header_row}, ` +
+            `${Object.keys(profile.column_map || {}).length} mapped fields`;
+          row.appendChild(summary);
+        }
+
+        const versionId = rmfExportVersionId(version);
+        if (version.status === "active") {
+          const option = document.createElement("option");
+          option.value = JSON.stringify({template_id: versionId});
+          option.textContent = `${templateName} — ${versionLabel}`;
+          selector.appendChild(option);
+        }
+        if (canManageRmfExport && versionId) {
+          const actions = document.createElement("div");
+          actions.className = "d-flex gap-2 mt-2";
+          if (version.status === "active") {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "btn btn-sm btn-outline-danger";
+            button.textContent = "Retire";
+            button.addEventListener(
+              "click",
+              () => mutateRmfExportTemplate(versionId, "retire", version.revision)
+            );
+            actions.appendChild(button);
+          } else if (version.status === "inactive") {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "btn btn-sm btn-outline-primary";
+            button.textContent = "Activate";
+            button.addEventListener(
+              "click",
+              () => mutateRmfExportTemplate(versionId, "activate", version.revision)
+            );
+            actions.appendChild(button);
+          }
+          row.appendChild(actions);
+        }
+        card.appendChild(row);
+      });
+      container.appendChild(card);
+    });
+    document.querySelector("[data-rmf-export-generate]").disabled = true;
+    document.querySelector("[data-rmf-export-readiness-counts]")?.replaceChildren();
+  }
+
+  function rmfExportSheetList() {
+    return rmfExportArray(
+      rmfExportInspection?.inspection || rmfExportInspection,
+      ["sheets", "worksheets"]
+    );
+  }
+
+  function invalidateRmfExportInspection() {
+    rmfExportInspection = null;
+    document.querySelector("[data-rmf-export-mapping]")?.classList.add("d-none");
+    document.querySelector("[data-rmf-export-sheet]")?.replaceChildren();
+    document.querySelector("[data-rmf-export-control-id]")?.replaceChildren();
+    document.querySelector("[data-rmf-export-field-mapping]")?.replaceChildren();
+    const headerRow = document.querySelector("[data-rmf-export-header-row]");
+    if (headerRow) headerRow.value = "";
+  }
+
+  function rmfExportHeaders(sheet, headerRow) {
+    const rows = sheet?.headers && typeof sheet.headers === "object"
+      ? sheet.headers
+      : {};
+    const entries = Array.isArray(rows[String(headerRow)])
+      ? rows[String(headerRow)]
+      : [];
+    return entries.map((header) => String(header?.value || "")).filter(Boolean);
+  }
+
+  function appendRmfExportHeaderOptions(select, headers, includeBlank = false) {
+    select.replaceChildren();
+    if (includeBlank) {
+      const blank = document.createElement("option");
+      blank.value = "";
+      blank.textContent = "Do not map";
+      select.appendChild(blank);
+    }
+    headers.forEach((header) => {
+      const option = document.createElement("option");
+      option.value = header;
+      option.textContent = header;
+      select.appendChild(option);
+    });
+  }
+
+  function renderRmfExportMapping() {
+    const sheetSelect = document.querySelector("[data-rmf-export-sheet]");
+    const mapping = document.querySelector("[data-rmf-export-mapping]");
+    if (!sheetSelect || !mapping) return;
+    const sheets = rmfExportSheetList();
+    sheetSelect.replaceChildren();
+    sheets.forEach((sheet, index) => {
+      const option = document.createElement("option");
+      option.value = String(index);
+      option.textContent = sheet.name || sheet.title || `Sheet ${index + 1}`;
+      sheetSelect.appendChild(option);
+    });
+    mapping.classList.toggle("d-none", !sheets.length);
+    renderRmfExportMappingHeaders(true);
+  }
+
+  function renderRmfExportMappingHeaders(resetHeaderRow = false) {
+    const sheetIndex = Number(
+      document.querySelector("[data-rmf-export-sheet]")?.value || 0
+    );
+    const sheet = rmfExportSheetList()[sheetIndex] || {};
+    const headerRow = document.querySelector("[data-rmf-export-header-row]");
+    const availableRows = Object.keys(sheet.headers || {})
+      .map(Number)
+      .filter((row) => Number.isInteger(row) && row > 0)
+      .sort((left, right) => left - right);
+    if (headerRow && (resetHeaderRow || !headerRow.value)) {
+      headerRow.value = availableRows[0] || 1;
+    }
+    const headers = rmfExportHeaders(sheet, Number(headerRow?.value || 1));
+    const controlSelect = document.querySelector("[data-rmf-export-control-id]");
+    if (controlSelect) appendRmfExportHeaderOptions(controlSelect, headers);
+    const fields = document.querySelector("[data-rmf-export-field-mapping]");
+    if (!fields) return;
+    fields.replaceChildren();
+    rmfExportCanonicalFields.forEach(([canonical, label]) => {
+      const wrapper = document.createElement("div");
+      wrapper.className = "col-md-6";
+      const fieldLabel = document.createElement("label");
+      fieldLabel.className = "form-label small";
+      fieldLabel.textContent = label;
+      const select = document.createElement("select");
+      select.className = "form-select form-select-sm";
+      select.dataset.rmfExportCanonical = canonical;
+      appendRmfExportHeaderOptions(select, headers, true);
+      const normalized = canonical.replaceAll("_", "");
+      const match = headers.find(
+        (header) => header.toLowerCase().replace(/[^a-z0-9]/g, "") === normalized
+      );
+      if (match) select.value = match;
+      wrapper.append(fieldLabel, select);
+      fields.appendChild(wrapper);
+    });
+  }
+
+  async function inspectRmfExportTemplate() {
+    const requestId = ++rmfExportInspectionRequestId;
+    const file = document.querySelector("[data-rmf-export-file]")?.files?.[0];
+    if (!file) throw new Error("Choose an XLSX workbook first.");
+    if (file.size > 20 * 1024 * 1024) throw new Error("The template exceeds the 20 MB limit.");
+    const body = new FormData();
+    body.append("file", file, file.name);
+    let response;
+    let payload;
+    try {
+      response = await fetch("/api/rmf/workspace/export-templates/inspect", {
+        method: "POST",
+        body
+      });
+      payload = await response.json();
+    } catch (error) {
+      if (requestId !== rmfExportInspectionRequestId) return;
+      throw error;
+    }
+    if (requestId !== rmfExportInspectionRequestId) return;
+    if (!response.ok) throw new Error(payload.error || "Unable to inspect the workbook.");
+    rmfExportInspection = payload;
+    renderRmfExportMapping();
+  }
+
+  async function saveRmfExportTemplate() {
+    const file = document.querySelector("[data-rmf-export-file]")?.files?.[0];
+    const sheetIndex = Number(document.querySelector("[data-rmf-export-sheet]")?.value || 0);
+    const sheet = rmfExportSheetList()[sheetIndex] || {};
+    const fieldMapping = {};
+    document.querySelectorAll("[data-rmf-export-canonical]").forEach((select) => {
+      if (select.value) fieldMapping[select.dataset.rmfExportCanonical] = select.value;
+    });
+    if (!file || !Object.keys(fieldMapping).length) {
+      throw new Error("Inspect a workbook and map at least one canonical field.");
+    }
+    const metadata = {
+      family_name: document.querySelector("[data-rmf-export-name]")?.value || "",
+      profile: {
+        sheet: sheet.name || sheet.title || "",
+        header_row: Number(document.querySelector("[data-rmf-export-header-row]")?.value),
+        control_id_header:
+          document.querySelector("[data-rmf-export-control-id]")?.value || "",
+        column_map: fieldMapping
+      },
+      inspected_sha256: rmfExportInspection?.sha256 || ""
+    };
+    const body = new FormData();
+    body.append("file", file, file.name);
+    body.append("metadata", JSON.stringify(metadata));
+    const response = await fetch("/api/rmf/workspace/export-templates", {
+      method: "POST",
+      body
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || "Unable to save the template.");
+    document.querySelector("[data-rmf-export-template-form]")?.reset();
+    invalidateRmfExportInspection();
+    await loadRmfExports();
+  }
+
+  async function mutateRmfExportTemplate(versionId, action, revision) {
+    setRmfExportError(null, "[data-rmf-export-template-error]");
+    try {
+      const response = await fetch(
+        `/api/rmf/workspace/export-templates/${encodeURIComponent(versionId)}/${action}`,
+        {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({revision})
+        }
+      );
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || `Unable to ${action} the version.`);
+      await loadRmfExports();
+    } catch (error) {
+      setRmfExportError(error.message, "[data-rmf-export-template-error]");
+    }
+  }
+
+  function rmfExportSelection() {
+    const value = document.querySelector("[data-rmf-export-selector]")?.value;
+    if (!value) return null;
+    try {
+      return JSON.parse(value);
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function renderRmfExportReadiness(readiness) {
+    const counts = readiness.counts || readiness.readiness || readiness;
+    const container = document.querySelector("[data-rmf-export-readiness-counts]");
+    container?.replaceChildren();
+    [
+      ["total_rows", "Total rows"],
+      ["writable", "Writable"],
+      ["stale", "Stale"],
+      ["not_analyzed", "Not analyzed"],
+      ["unrecognized", "Unrecognized"],
+      ["pending_candidate", "Pending candidate"],
+      ["approved_na", "Approved N/A"]
+    ].forEach(([key, label]) => {
+      const wrapper = document.createElement("div");
+      wrapper.className = "col-6 col-md-4";
+      const box = document.createElement("div");
+      box.className = "border rounded p-2";
+      const title = document.createElement("div");
+      title.className = "small text-muted";
+      title.textContent = label;
+      const value = document.createElement("div");
+      value.className = "h5 mb-0";
+      const camelKey = key.replace(/_([a-z])/g, (_match, letter) => letter.toUpperCase());
+      value.textContent =
+        counts?.[key] ?? counts?.[key.replace("_", "-")] ?? counts?.[camelKey] ?? 0;
+      box.append(title, value);
+      wrapper.appendChild(box);
+      container?.appendChild(wrapper);
+    });
+    const warnings = rmfExportArray(readiness, ["warnings", "omissions"]);
+    const warningBox = document.querySelector("[data-rmf-export-readiness-warnings]");
+    warningBox?.replaceChildren();
+    warnings.forEach((warning) => {
+      const line = document.createElement("div");
+      line.textContent = String(warning?.message || warning);
+      warningBox?.appendChild(line);
+    });
+    warningBox?.classList.toggle("d-none", !warnings.length);
+    document.querySelector("[data-rmf-export-generate]").disabled = Boolean(
+      rmfExportActiveId || rmfExportGenerationPending
+    );
+  }
+
+  async function loadRmfExportReadiness() {
+    const requestId = ++rmfExportReadinessRequestId;
+    const selected = rmfExportSelection();
+    document.querySelector("[data-rmf-export-generate]").disabled = true;
+    if (!selected) return;
+    const params = new URLSearchParams({template_id: selected.template_id});
+    let response;
+    let payload;
+    try {
+      response = await fetch(
+        `/api/rmf/workspace/exports/readiness?${params.toString()}`
+      );
+      payload = await response.json();
+    } catch (error) {
+      if (requestId !== rmfExportReadinessRequestId) return;
+      throw error;
+    }
+    if (requestId !== rmfExportReadinessRequestId) return;
+    if (!response.ok) throw new Error(payload.error || "Unable to load export readiness.");
+    renderRmfExportReadiness(payload);
+  }
+
+  function renderRmfExportHistory() {
+    const container = document.querySelector("[data-rmf-export-history]");
+    if (!container) return;
+    container.replaceChildren();
+    if (!rmfExportJobs.length) {
+      const empty = document.createElement("div");
+      empty.className = "text-muted";
+      empty.textContent = "No exports have been generated.";
+      container.appendChild(empty);
+      return;
+    }
+    rmfExportJobs.forEach((job) => {
+      const card = document.createElement("div");
+      card.className = "border rounded p-3";
+      const heading = document.createElement("div");
+      heading.className = "d-flex justify-content-between gap-2";
+      const title = document.createElement("span");
+      title.className = "fw-semibold";
+      title.textContent = job.download_name || (
+        job.template_version ? `Template version ${job.template_version}` : "RMF export"
+      );
+      const status = document.createElement("span");
+      status.className = "badge text-bg-light border text-capitalize";
+      status.textContent = job.status || "unknown";
+      heading.append(title, status);
+      card.appendChild(heading);
+      const details = document.createElement("div");
+      details.className = "small text-muted mt-1";
+      const timestamp = job.created_at || job.requested_at || job.completed_at;
+      details.textContent = [
+        job.requested_by || job.requester,
+        timestamp ? new Date(timestamp).toLocaleString() : null,
+        job.evidence_fingerprint
+          ? `Evidence ${String(job.evidence_fingerprint).slice(0, 16)}…`
+          : null
+      ].filter(Boolean).join(" · ");
+      card.appendChild(details);
+      const digests = [
+        job.workbook_sha256,
+        job.manifest_sha256
+      ].filter(Boolean);
+      if (digests.length) {
+        const digestLine = document.createElement("div");
+        digestLine.className = "small text-muted";
+        digestLine.textContent = digests.map(
+          (digest, index) => `${index ? "Manifest" : "Workbook"} digest ${
+            String(digest).slice(0, 16)
+          }…`
+        ).join(" · ");
+        card.appendChild(digestLine);
+      }
+      const readiness = job.readiness_summary || job.readiness;
+      if (readiness) {
+        const summary = document.createElement("div");
+        summary.className = "small text-muted";
+        summary.textContent = Object.entries(readiness)
+          .map(([key, value]) => `${key.replaceAll("_", " ")}: ${value}`)
+          .join(" · ");
+        card.appendChild(summary);
+      }
+      if (job.error) {
+        const error = document.createElement("div");
+        error.className = "small text-danger";
+        error.textContent = job.error;
+        card.appendChild(error);
+      }
+      const jobId = String(job.id || job.export_id || "");
+      if (
+        jobId &&
+        ["succeeded", "completed", "complete"].includes(
+          String(job.status).toLowerCase()
+        )
+      ) {
+        const downloads = document.createElement("div");
+        downloads.className = "d-flex gap-2 mt-2";
+        [["workbook", "Download workbook"], ["manifest", "Download manifest"]].forEach(
+          ([artifact, label]) => {
+            const link = document.createElement("a");
+            link.className = "btn btn-sm btn-outline-primary";
+            link.href = `/api/rmf/workspace/exports/${encodeURIComponent(jobId)}/${artifact}`;
+            link.textContent = label;
+            downloads.appendChild(link);
+          }
+        );
+        card.appendChild(downloads);
+      }
+      container.appendChild(card);
+    });
+  }
+
+  async function pollRmfExport(exportId, retryAttempt = 0) {
+    if (rmfExportActiveId && String(rmfExportActiveId) !== String(exportId)) return;
+    rmfExportActiveId = String(exportId);
+    window.clearTimeout(rmfExportPollTimer);
+    if (++rmfExportPollAttempts > 60) {
+      setRmfExportError("Export status polling stopped. Refresh to check the final status.");
+      return;
+    }
+    try {
+      const response = await fetch(
+        `/api/rmf/workspace/exports/${encodeURIComponent(exportId)}`
+      );
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Unable to load export status.");
+      const index = rmfExportJobs.findIndex(
+        (job) => String(job.id || job.export_id) === String(exportId)
+      );
+      if (index >= 0) rmfExportJobs[index] = payload;
+      else rmfExportJobs.unshift(payload);
+      renderRmfExportHistory();
+      if (!rmfExportIsTerminal(payload)) {
+        rmfExportPollTimer = window.setTimeout(() => pollRmfExport(exportId), 2000);
+      } else {
+        rmfExportActiveId = null;
+        if (rmfExportIsSuccessful(payload)) {
+          rmfExportIdempotencyKey = null;
+          rmfExportIdempotencySelection = null;
+        }
+        document.querySelector("[data-rmf-export-generate]").disabled =
+          !rmfExportSelection();
+      }
+    } catch (error) {
+      if (retryAttempt < 5) {
+        rmfExportPollTimer = window.setTimeout(
+          () => pollRmfExport(exportId, retryAttempt + 1),
+          2000 * (retryAttempt + 1)
+        );
+      } else {
+        setRmfExportError(error.message);
+      }
+    }
+  }
+
+  async function generateRmfExport() {
+    const selected = rmfExportSelection();
+    if (!selected) throw new Error("Select an active template version.");
+    if (rmfExportActiveId || rmfExportGenerationPending) {
+      throw new Error("An export is already running. Wait for it to finish or refresh history.");
+    }
+    const selectionFingerprint = JSON.stringify(selected);
+    if (
+      !rmfExportIdempotencyKey ||
+      rmfExportIdempotencySelection !== selectionFingerprint
+    ) {
+      rmfExportIdempotencyKey = crypto.randomUUID();
+      rmfExportIdempotencySelection = selectionFingerprint;
+    }
+    rmfExportGenerationPending = true;
+    try {
+      const response = await fetch("/api/rmf/workspace/exports", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          ...selected,
+          idempotency_key: rmfExportIdempotencyKey
+        })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        if (response.status === 409) {
+          await loadRmfExports();
+          const reconciled = rmfExportJobs.some(
+            (job) => job.idempotency_key === rmfExportIdempotencyKey
+          );
+          if (!reconciled) {
+            rmfExportIdempotencyKey = null;
+            rmfExportIdempotencySelection = null;
+          }
+        }
+        throw new Error(payload.error || "Unable to generate the export.");
+      }
+      rmfExportJobs.unshift(payload);
+      renderRmfExportHistory();
+      const exportId = payload.id || payload.export_id;
+      if (!exportId) throw new Error("The export service returned an invalid job.");
+      if (rmfExportIsTerminal(payload)) {
+        if (rmfExportIsSuccessful(payload)) {
+          rmfExportIdempotencyKey = null;
+          rmfExportIdempotencySelection = null;
+        }
+        document.querySelector("[data-rmf-export-generate]").disabled =
+          !rmfExportSelection();
+      } else {
+        rmfExportActiveId = String(exportId);
+        rmfExportPollAttempts = 0;
+        pollRmfExport(exportId);
+      }
+    } finally {
+      rmfExportGenerationPending = false;
+    }
+  }
+
+  async function loadRmfExports() {
+    const requestId = ++rmfExportLoadRequestId;
+    setRmfExportError();
+    let templateResponse;
+    let exportResponse;
+    let templatePayload;
+    let exportPayload;
+    try {
+      [templateResponse, exportResponse] = await Promise.all([
+        fetch("/api/rmf/workspace/export-templates"),
+        fetch("/api/rmf/workspace/exports")
+      ]);
+      [templatePayload, exportPayload] = await Promise.all([
+        templateResponse.json(),
+        exportResponse.json()
+      ]);
+    } catch (error) {
+      if (requestId !== rmfExportLoadRequestId) return;
+      throw error;
+    }
+    if (requestId !== rmfExportLoadRequestId) return;
+    if (!templateResponse.ok) {
+      throw new Error(templatePayload.error || "Unable to load export templates.");
+    }
+    if (!exportResponse.ok) {
+      throw new Error(exportPayload.error || "Unable to load export history.");
+    }
+    rmfExportTemplates = rmfExportArray(templatePayload, ["templates", "items"]);
+    rmfExportJobs = rmfExportArray(exportPayload, ["exports", "items", "jobs"]);
+    renderRmfExportTemplates();
+    renderRmfExportHistory();
+    const activeJob = rmfExportJobs.find((job) => !rmfExportIsTerminal(job));
+    if (activeJob) {
+      const activeId = activeJob.id || activeJob.export_id;
+      if (activeId) {
+        rmfExportActiveId = String(activeId);
+        rmfExportPollAttempts = 0;
+        pollRmfExport(activeId);
+      }
+    } else {
+      rmfExportActiveId = null;
+    }
+    rmfExportLoaded = true;
+  }
+
+  async function loadRmfServiceState() {
+    if (!rmfStatus) return;
+    try {
+      const response = await fetch("/api/rmf/workspace");
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Unable to load RMF status.");
+      if (payload.serviceError) throw new Error(payload.serviceError);
+      if (payload.service?.configured) {
+        const system = payload.service.system;
+        rmfStatus.textContent =
+          `Connected: ${system.name} (${system.system_id}), impact level ${system.impact_level}`;
+        rmfInitializeForm?.classList.add("d-none");
+        await loadRmfOverview();
+      } else {
+        rmfStatus.textContent = "Connected. Initialize one RMF system for this workspace.";
+        rmfInitializeForm?.classList.remove("d-none");
+      }
+    } catch (error) {
+      rmfStatus.textContent = error.message;
+      rmfStatus.classList.add("text-danger");
+    }
+  }
+
+  rmfInitializeForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submitButton = rmfInitializeForm.querySelector("button[type=submit]");
+    submitButton.disabled = true;
+    const formData = new FormData(rmfInitializeForm);
+    try {
+      const response = await fetch("/api/rmf/workspace/initialize", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          system_id: formData.get("system_id"),
+          system_name: formData.get("system_name"),
+          impact_level: Number(formData.get("impact_level")),
+          owner: formData.get("owner")
+        })
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Unable to initialize RMF.");
+      await loadRmfServiceState();
+    } catch (error) {
+      const errorBox = document.querySelector("[data-rmf-error]");
+      errorBox.textContent = error.message;
+      errorBox.classList.remove("d-none");
+      submitButton.disabled = false;
+    }
+  });
+
+  document.querySelectorAll("[data-rmf-set-enabled]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const enabled = button.dataset.rmfSetEnabled === "true";
+      button.disabled = true;
+      const errorBox = document.querySelector("[data-rmf-error]");
+      errorBox.classList.add("d-none");
+
+      try {
+        const response = await fetch("/api/rmf/workspace", {
+          method: "PATCH",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({enabled})
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "Unable to update the RMF workspace.");
+        }
+        window.location.reload();
+      } catch (error) {
+        errorBox.textContent = error.message;
+        errorBox.classList.remove("d-none");
+        button.disabled = false;
+      }
+    });
+  });
+
+  document.querySelector("[data-rmf-next-action]")?.addEventListener("click", (event) => {
+    const target = event.currentTarget.dataset.rmfTargetTab;
+    document.getElementById(`rmf-${target}-tab`)?.click();
+  });
+
+  document.getElementById("rmf-evidence-tab")?.addEventListener("shown.bs.tab", () => {
+    if (!rmfEvidenceLoaded) loadRmfEvidence();
+  });
+  document.querySelector("[data-rmf-evidence-refresh]")?.addEventListener(
+    "click",
+    loadRmfEvidence
+  );
+
+  document.querySelectorAll('input[name="rmf-analysis-scope"]').forEach((input) => {
+    input.addEventListener("change", () => {
+      const selected = rmfAnalysisScope() === "selected";
+      document.querySelector("[data-rmf-analysis-picker]")?.classList.toggle(
+        "d-none",
+        !selected
+      );
+      updateRmfAnalysisActions();
+    });
+  });
+  document.querySelector("#rmf-analysis-search")?.addEventListener(
+    "input",
+    renderRmfAnalysisControls
+  );
+  document.getElementById("rmf-analysis-tab")?.addEventListener("shown.bs.tab", () => {
+    if (!rmfAnalysisLoaded) loadRmfAnalysis();
+  });
+  document.querySelector("[data-rmf-analysis-refresh]")?.addEventListener(
+    "click",
+    loadRmfAnalysis
+  );
+  document.querySelector("[data-rmf-analysis-start]")?.addEventListener(
+    "click",
+    async (event) => {
+      const button = event.currentTarget;
+      const scope = rmfAnalysisScope();
+      const controlIds = scope === "selected" ? Array.from(rmfSelectedControls) : [];
+      if (scope === "selected" && controlIds.length === 0) {
+        setRmfAnalysisError("Select at least one control.");
+        return;
+      }
+      button.disabled = true;
+      setRmfAnalysisError();
+      try {
+        const job = await mutateRmfAnalysis("/api/rmf/workspace/analysis", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            scope,
+            control_ids: controlIds,
+            fresh: document.querySelector("[data-rmf-analysis-fresh]").checked,
+            deep: document.querySelector("[data-rmf-analysis-deep]").checked
+          })
+        });
+        rmfAnalysisJobs.unshift(job);
+        renderRmfAnalysis();
+        if (job.id) pollRmfAnalysisJob(job.id);
+      } catch (error) {
+        setRmfAnalysisError(error.message);
+        button.disabled = false;
+      }
+    }
+  );
+  document.querySelector("[data-rmf-analysis-cancel]")?.addEventListener(
+    "click",
+    async (event) => {
+      if (!rmfAnalysisActiveJobId) return;
+      event.currentTarget.disabled = true;
+      setRmfAnalysisError();
+      try {
+        const job = await mutateRmfAnalysis(
+          `/api/rmf/workspace/analysis/jobs/${
+            encodeURIComponent(rmfAnalysisActiveJobId)
+          }/cancel`,
+          {method: "POST"}
+        );
+        const index = rmfAnalysisJobs.findIndex((item) => item.id === job.id);
+        if (index >= 0) rmfAnalysisJobs[index] = job;
+        renderRmfAnalysis();
+        if (job.id) pollRmfAnalysisJob(job.id);
+      } catch (error) {
+        setRmfAnalysisError(error.message);
+        event.currentTarget.disabled = false;
+      }
+    }
+  );
+
+  document.getElementById("rmf-controls-tab")?.addEventListener("shown.bs.tab", () => {
+    if (!rmfControlsLoaded) loadRmfControls();
+  });
+  document.querySelector("[data-rmf-controls-refresh]")?.addEventListener(
+    "click",
+    () => loadRmfControls(rmfControlsPage)
+  );
+  document.querySelector("[data-rmf-controls-previous]")?.addEventListener(
+    "click",
+    () => loadRmfControls(Math.max(1, rmfControlsPage - 1))
+  );
+  document.querySelector("[data-rmf-controls-next]")?.addEventListener(
+    "click",
+    () => loadRmfControls(rmfControlsPage + 1)
+  );
+  [
+    "[data-rmf-controls-family]",
+    "[data-rmf-controls-state]",
+    "[data-rmf-controls-status]",
+    "[data-rmf-controls-gaps]"
+  ].forEach((selector) => {
+    document.querySelector(selector)?.addEventListener("change", () => loadRmfControls(1));
+  });
+  document.querySelector("#rmf-controls-search")?.addEventListener("input", () => {
+    window.clearTimeout(rmfControlsSearchTimer);
+    rmfControlsSearchTimer = window.setTimeout(() => loadRmfControls(1), 300);
+  });
+  document.querySelector("[data-rmf-control-analyze]")?.addEventListener(
+    "click",
+    () => prepareRmfAnalysisControl(rmfSelectedControlId)
+  );
+  document.querySelector("[data-rmf-applicability-approve]")?.addEventListener(
+    "click",
+    () => submitRmfApplicability("approve")
+  );
+  document.querySelector("[data-rmf-applicability-reject]")?.addEventListener(
+    "click",
+    () => submitRmfApplicability("reject")
+  );
+  document.querySelector("[data-rmf-applicability-direct]")?.addEventListener(
+    "click",
+    () => submitRmfApplicability("approve")
+  );
+  document.querySelector("[data-rmf-applicability-revoke]")?.addEventListener(
+    "click",
+    () => submitRmfApplicability("revoke")
+  );
+
+  document.getElementById("rmf-attestations-tab")?.addEventListener(
+    "shown.bs.tab",
+    () => {
+      if (!rmfAttestationsLoaded) loadRmfAttestations();
+    }
+  );
+  document.querySelector("[data-rmf-attestation-refresh]")?.addEventListener(
+    "click",
+    loadRmfAttestations
+  );
+  document.querySelector("[data-rmf-attestation-start]")?.addEventListener(
+    "click",
+    async (event) => {
+      event.currentTarget.disabled = true;
+      setRmfAttestationError();
+      try {
+        await startRmfAttestationSession();
+      } catch (error) {
+        setRmfAttestationError(error.message);
+      } finally {
+        event.currentTarget.disabled = false;
+      }
+    }
+  );
+  document.querySelector("[data-rmf-attestation-next]")?.addEventListener(
+    "click",
+    async (event) => {
+      if (!rmfAttestationCurrent) return;
+      event.currentTarget.disabled = true;
+      setRmfAttestationError();
+      try {
+        await mutateRmfAttestation(
+          `/api/rmf/workspace/attestations/sessions/${
+            encodeURIComponent(rmfAttestationCurrent.id)
+          }/next`,
+          {revision: rmfAttestationCurrent.revision}
+        );
+      } catch (error) {
+        setRmfAttestationError(error.message);
+      } finally {
+        event.currentTarget.disabled = false;
+      }
+    }
+  );
+  document.querySelector("[data-rmf-attestation-submit]")?.addEventListener(
+    "click",
+    async (event) => {
+      const current = rmfAttestationCurrent?.current_turn;
+      const answer = document.querySelector("[data-rmf-attestation-answer]")?.value || "";
+      if (!current || !answer.trim()) {
+        setRmfAttestationError("Enter an answer before submitting.");
+        return;
+      }
+      event.currentTarget.disabled = true;
+      setRmfAttestationError();
+      try {
+        await mutateRmfAttestation(
+          `/api/rmf/workspace/attestations/sessions/${
+            encodeURIComponent(rmfAttestationCurrent.id)
+          }/answers`,
+          {
+            revision: rmfAttestationCurrent.revision,
+            turn_id: current.id,
+            answer
+          }
+        );
+      } catch (error) {
+        setRmfAttestationError(error.message);
+      } finally {
+        event.currentTarget.disabled = false;
+      }
+    }
+  );
+  document.querySelector("[data-rmf-attestation-cancel]")?.addEventListener(
+    "click",
+    async (event) => {
+      if (!rmfAttestationCurrent) return;
+      event.currentTarget.disabled = true;
+      setRmfAttestationError();
+      try {
+        await mutateRmfAttestation(
+          `/api/rmf/workspace/attestations/sessions/${
+            encodeURIComponent(rmfAttestationCurrent.id)
+          }/cancel`,
+          {revision: rmfAttestationCurrent.revision}
+        );
+      } catch (error) {
+        setRmfAttestationError(error.message);
+      } finally {
+        event.currentTarget.disabled = false;
+      }
+    }
+  );
+  document.querySelector("[data-rmf-attestation-analyze]")?.addEventListener(
+    "click",
+    prepareRmfAnalysisFromAttestation
+  );
+  document.querySelector("[data-rmf-attestation-all]")?.addEventListener(
+    "change",
+    renderRmfAttestationControls
+  );
+
+  document.getElementById("rmf-export-tab")?.addEventListener("shown.bs.tab", async () => {
+    if (rmfExportLoaded) return;
+    try {
+      await loadRmfExports();
+    } catch (error) {
+      setRmfExportError(error.message);
+    }
+  });
+  document.querySelector("[data-rmf-export-refresh]")?.addEventListener(
+    "click",
+    async () => {
+      try {
+        await loadRmfExports();
+      } catch (error) {
+        setRmfExportError(error.message);
+      }
+    }
+  );
+  document.querySelector("[data-rmf-export-inspect]")?.addEventListener(
+    "click",
+    async (event) => {
+      event.currentTarget.disabled = true;
+      setRmfExportError(null, "[data-rmf-export-template-error]");
+      try {
+        await inspectRmfExportTemplate();
+      } catch (error) {
+        setRmfExportError(error.message, "[data-rmf-export-template-error]");
+      } finally {
+        event.currentTarget.disabled = false;
+      }
+    }
+  );
+  document.querySelector("[data-rmf-export-file]")?.addEventListener("change", () => {
+    rmfExportInspectionRequestId += 1;
+    invalidateRmfExportInspection();
+    setRmfExportError(null, "[data-rmf-export-template-error]");
+  });
+  document.querySelector("[data-rmf-export-sheet]")?.addEventListener(
+    "change",
+    () => renderRmfExportMappingHeaders(true)
+  );
+  document.querySelector("[data-rmf-export-header-row]")?.addEventListener(
+    "change",
+    () => renderRmfExportMappingHeaders(false)
+  );
+  document.querySelector("[data-rmf-export-template-form]")?.addEventListener(
+    "submit",
+    async (event) => {
+      event.preventDefault();
+      const button = event.currentTarget.querySelector("button[type=submit]");
+      button.disabled = true;
+      setRmfExportError(null, "[data-rmf-export-template-error]");
+      try {
+        await saveRmfExportTemplate();
+      } catch (error) {
+        setRmfExportError(error.message, "[data-rmf-export-template-error]");
+      } finally {
+        button.disabled = false;
+      }
+    }
+  );
+  document.querySelector("[data-rmf-export-selector]")?.addEventListener(
+    "change",
+    async () => {
+      rmfExportIdempotencyKey = null;
+      rmfExportIdempotencySelection = null;
+      setRmfExportError();
+      try {
+        await loadRmfExportReadiness();
+      } catch (error) {
+        setRmfExportError(error.message);
+      }
+    }
+  );
+  document.querySelector("[data-rmf-export-generate]")?.addEventListener(
+    "click",
+    async (event) => {
+      event.currentTarget.disabled = true;
+      setRmfExportError();
+      try {
+        await generateRmfExport();
+      } catch (error) {
+        setRmfExportError(error.message);
+        event.currentTarget.disabled = Boolean(
+          rmfExportActiveId || rmfExportGenerationPending
+        );
+      }
+    }
+  );
+
+  loadRmfServiceState();
+</script>
+{% endblock %}

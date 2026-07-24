@@ -58,6 +58,11 @@
             <i class="bi bi-people me-2"></i>Groups
           </a>
           {% endif %}
+          {% if app_settings.enable_group_workspaces and app_settings.enable_rmf %}
+          <a class="list-group-item list-group-item-action" href="{{ url_for('frontend_rmf.rmf_workspace') }}">
+            <i class="bi bi-shield-check me-2"></i>RMF
+          </a>
+          {% endif %}
           {% if app_settings.enable_public_workspaces %}
           <a class="list-group-item list-group-item-action" href="{{ url_for('frontend_public_workspaces.public_directory') }}">
             <i class="bi bi-globe-americas me-2"></i>Public

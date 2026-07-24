@@ -51,6 +51,7 @@ from route_frontend_agents import *
 from route_frontend_conversations import *
 from route_frontend_groups import *
 from route_frontend_group_workspaces import *
+from route_frontend_rmf import register_route_frontend_rmf
 from route_frontend_public_workspaces import *
 from route_frontend_safety import *
 from route_frontend_feedback import *
@@ -66,6 +67,7 @@ from route_backend_documents import *
 from route_backend_groups import *
 from route_backend_users import *
 from route_backend_group_documents import *
+from route_backend_rmf import register_route_backend_rmf
 from route_backend_models import *
 from route_backend_workflows import *
 from route_backend_safety import *
@@ -1190,6 +1192,7 @@ register_route_blueprint('frontend_groups', register_route_frontend_groups, user
 
 # ------------------- Group Documents Routes -------------
 register_route_blueprint('frontend_group_workspaces', register_route_frontend_group_workspaces, user_required_blueprint)
+register_route_blueprint('frontend_rmf', register_route_frontend_rmf, user_required_blueprint)
 register_route_blueprint('frontend_public_workspaces', register_route_frontend_public_workspaces, user_required_blueprint)
 
 # ------------------- Safety Routes ----------------------
@@ -1233,6 +1236,7 @@ register_route_blueprint('backend_users', register_route_backend_users, user_req
 
 # ------------------- API Group Documents Routes ---------
 register_route_blueprint('backend_group_documents', register_route_backend_group_documents, user_required_blueprint)
+register_route_blueprint('backend_rmf', register_route_backend_rmf, user_required_blueprint)
 
 # ------------------- API Model Routes -------------------
 register_route_blueprint('backend_models', register_route_backend_models, user_required_blueprint)

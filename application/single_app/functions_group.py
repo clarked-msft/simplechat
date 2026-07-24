@@ -42,6 +42,10 @@ def create_group(name, description):
         ],
         "pendingUsers": [],
         "disable_file_downloads": False,
+        "rmf": {
+            "enabled": False,
+            "setupStatus": "not-configured",
+        },
         "createdDate": now_str,
         "modifiedDate": now_str
     }

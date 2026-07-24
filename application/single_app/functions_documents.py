@@ -300,9 +300,14 @@ def get_document_blob_storage_info(document_item, user_id=None, group_id=None, p
     if not document_item:
         return None, None
 
+    owning_group_id = document_item.get("group_id") or group_id
+    owning_public_workspace_id = (
+        document_item.get("public_workspace_id") or public_workspace_id
+    )
+    owning_user_id = document_item.get("user_id") or user_id
     container_name = document_item.get("blob_container") or _get_blob_container_name(
-        group_id=group_id or document_item.get("group_id"),
-        public_workspace_id=public_workspace_id or document_item.get("public_workspace_id"),
+        group_id=owning_group_id,
+        public_workspace_id=owning_public_workspace_id,
     )
 
     archived_blob_path = document_item.get("archived_blob_path")
@@ -319,9 +324,9 @@ def get_document_blob_storage_info(document_item, user_id=None, group_id=None, p
 
     return container_name, build_current_blob_path(
         document_item.get("file_name"),
-        user_id=user_id or document_item.get("user_id"),
-        group_id=group_id or document_item.get("group_id"),
-        public_workspace_id=public_workspace_id or document_item.get("public_workspace_id"),
+        user_id=owning_user_id,
+        group_id=owning_group_id,
+        public_workspace_id=owning_public_workspace_id,
     )
 
 
@@ -481,7 +486,30 @@ def _blob_exists(container_name, blob_path):
     return blob_client.exists()
 
 
-def _copy_blob_to_blob(source_container_name, source_blob_path, destination_container_name, destination_blob_path, overwrite=False):
+def _validate_blob_document_id(container_name, blob_path, expected_document_id):
+    if not expected_document_id:
+        return
+    blob_service_client = _get_blob_service_client()
+    blob_client = blob_service_client.get_blob_client(
+        container=container_name,
+        blob=blob_path,
+    )
+    properties = blob_client.get_blob_properties()
+    if (
+        str((properties.metadata or {}).get("document_id") or "")
+        != str(expected_document_id)
+    ):
+        raise RuntimeError("Archived blob does not match the requested document revision")
+
+
+def _copy_blob_to_blob(
+    source_container_name,
+    source_blob_path,
+    destination_container_name,
+    destination_blob_path,
+    overwrite=False,
+    expected_document_id=None,
+):
     if not source_container_name or not source_blob_path:
         raise ValueError("Source blob reference is required")
     if not destination_container_name or not destination_blob_path:
@@ -494,27 +522,56 @@ def _copy_blob_to_blob(source_container_name, source_blob_path, destination_cont
     destination_blob_client = blob_service_client.get_blob_client(container=destination_container_name, blob=destination_blob_path)
 
     if destination_blob_client.exists() and not overwrite:
+        destination_properties = destination_blob_client.get_blob_properties()
+        if expected_document_id and (
+            str((destination_properties.metadata or {}).get("document_id") or "")
+            != str(expected_document_id)
+        ):
+            raise RuntimeError("Archived blob does not match the requested document revision")
         return destination_blob_path
     if not source_blob_client.exists():
         raise FileNotFoundError(f"Source blob not found: {source_container_name}/{source_blob_path}")
 
     properties = source_blob_client.get_blob_properties()
     source_metadata = dict(properties.metadata) if properties.metadata else None
+    if expected_document_id and (
+        str((source_metadata or {}).get("document_id") or "") != str(expected_document_id)
+    ):
+        raise RuntimeError("Current blob alias no longer matches the requested document revision")
     temp_file_path = None
 
     try:
+        from azure.core import MatchConditions
+
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             temp_file_path = temp_file.name
-            download_stream = source_blob_client.download_blob()
+            download_stream = source_blob_client.download_blob(
+                etag=properties.etag,
+                match_condition=MatchConditions.IfNotModified,
+            )
             for chunk in download_stream.chunks():
                 temp_file.write(chunk)
 
         with open(temp_file_path, "rb") as temp_file_handle:
-            destination_blob_client.upload_blob(
-                temp_file_handle,
-                overwrite=overwrite,
-                metadata=source_metadata,
-            )
+            try:
+                destination_blob_client.upload_blob(
+                    temp_file_handle,
+                    overwrite=overwrite,
+                    metadata=source_metadata,
+                )
+            except Exception as exc:
+                from azure.core.exceptions import ResourceExistsError
+
+                if not isinstance(exc, ResourceExistsError) or overwrite:
+                    raise
+                destination_properties = destination_blob_client.get_blob_properties()
+                if expected_document_id and (
+                    str((destination_properties.metadata or {}).get("document_id") or "")
+                    != str(expected_document_id)
+                ):
+                    raise RuntimeError(
+                        "Concurrent archive does not match the requested document revision"
+                    ) from exc
     finally:
         if temp_file_path and os.path.exists(temp_file_path):
             os.remove(temp_file_path)
@@ -550,6 +607,7 @@ def _archive_previous_document_blob(previous_document, user_id=None, group_id=No
             container_name,
             archived_blob_path,
             overwrite=False,
+            expected_document_id=previous_document.get("id"),
         )
         archived_available = True
 
@@ -558,12 +616,41 @@ def _archive_previous_document_blob(previous_document, user_id=None, group_id=No
             f"Warning: Could not archive prior revision blob for document {previous_document.get('id')}"
         )
         return None
+    _validate_blob_document_id(
+        container_name,
+        archived_blob_path,
+        previous_document.get("id"),
+    )
 
     previous_document["blob_container"] = container_name
     previous_document["blob_path"] = archived_blob_path
     previous_document["archived_blob_path"] = archived_blob_path
     previous_document["blob_path_mode"] = ARCHIVED_REVISION_BLOB_PATH_MODE
     return archived_blob_path
+
+
+def ensure_document_revision_blob(
+    document_item,
+    user_id=None,
+    group_id=None,
+    public_workspace_id=None,
+):
+    """Return an immutable blob path for one exact document revision."""
+    archived_blob_path = _archive_previous_document_blob(
+        document_item,
+        user_id=user_id,
+        group_id=group_id,
+        public_workspace_id=public_workspace_id,
+    )
+    if not archived_blob_path:
+        return None, None
+    container_name = document_item.get("blob_container") or _get_blob_container_name(
+        group_id=group_id or document_item.get("group_id"),
+        public_workspace_id=(
+            public_workspace_id or document_item.get("public_workspace_id")
+        ),
+    )
+    return container_name, archived_blob_path
 
 
 def _promote_document_blob_to_current_alias(promoted_document, user_id=None, group_id=None, public_workspace_id=None):

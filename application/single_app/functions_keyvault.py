@@ -1,5 +1,6 @@
 # functions_keyvault.py
 
+import os
 import re
 import logging
 from functions_appinsights import log_event
@@ -511,12 +512,11 @@ def retrieve_secret_direct(secret_name, settings=None):
         settings = app_settings_cache.get_settings_cache()
 
     
-    enable_key_vault_secret_storage = settings.get("enable_key_vault_secret_storage", False)
-
-    if not enable_key_vault_secret_storage:
-        raise ValueError("Key Vault secret storage is not enabled in settings.")
-
-    key_vault_name = settings.get("key_vault_name", "").strip()
+    key_vault_name = (
+        settings.get("key_vault_name", "")
+        or os.getenv("RMF_KEY_VAULT_NAME", "")
+        or os.getenv("KEY_VAULT_NAME", "")
+    ).strip()
     if not key_vault_name:
         raise ValueError("Key Vault name is not configured in settings (key_vault_name).")
     if not secret_name:

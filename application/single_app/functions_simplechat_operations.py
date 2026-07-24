@@ -737,6 +737,24 @@ def download_blob_content(blob_container: str, blob_path: str) -> bytes:
     return blob_client.download_blob().readall()
 
 
+def download_blob_to_file(blob_container: str, blob_path: str, destination) -> None:
+    """Stream a blob to a local file path without buffering it in memory."""
+    normalized_blob_container = str(blob_container or "").strip()
+    normalized_blob_path = str(blob_path or "").strip()
+    if not normalized_blob_container or not normalized_blob_path:
+        raise ValueError("blob_container and blob_path are required")
+
+    blob_service_client = CLIENTS.get("storage_account_office_docs_client")
+    if not blob_service_client:
+        raise RuntimeError("Blob storage client not available")
+    blob_client = blob_service_client.get_blob_client(
+        container=normalized_blob_container,
+        blob=normalized_blob_path,
+    )
+    with open(destination, "wb") as stream:
+        blob_client.download_blob().readinto(stream)
+
+
 def _normalize_chat_image_file_name(file_name: str, content_type: str = "image/png") -> str:
     normalized_file_name = str(file_name or "").replace("\\", "/").split("/")[-1].strip()
     normalized_content_type = str(content_type or "image/png").split(";", 1)[0].strip().lower() or "image/png"

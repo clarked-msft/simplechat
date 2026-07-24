@@ -45,6 +45,11 @@
                         <a class="nav-link" href="{{ url_for('frontend_group_workspaces.group_workspaces') }}">Groups</a>
                     </div>
                 {% endif %}
+                {% if app_settings.enable_group_workspaces and app_settings.enable_rmf %}
+                    <div class="nav-item">
+                        <a class="nav-link" href="{{ url_for('frontend_rmf.rmf_workspace') }}">RMF</a>
+                    </div>
+                {% endif %}
                 {% if app_settings.enable_public_workspaces %}
                     <div class="nav-item">
                         <a class="nav-link" href="{{ url_for('frontend_public_workspaces.public_directory') }}">Public</a>
@@ -286,6 +291,11 @@
                 {% if app_settings.enable_group_workspaces %}
                     <a class="list-group-item list-group-item-action" href="{{ url_for('frontend_group_workspaces.group_workspaces') }}">
                         <i class="bi bi-people me-2"></i>Groups
+                    </a>
+                {% endif %}
+                {% if app_settings.enable_group_workspaces and app_settings.enable_rmf %}
+                    <a class="list-group-item list-group-item-action" href="{{ url_for('frontend_rmf.rmf_workspace') }}">
+                        <i class="bi bi-shield-check me-2"></i>RMF
                     </a>
                 {% endif %}
                 {% if app_settings.enable_public_workspaces %}

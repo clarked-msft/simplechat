@@ -97,7 +97,7 @@ load_dotenv()
 EXECUTOR_TYPE = 'thread'
 EXECUTOR_MAX_WORKERS = 30
 SESSION_TYPE = 'filesystem'
-VERSION = "0.250.059"
+VERSION = "0.250.069"
 IS_DEVELOPMENT = is_development_env_enabled()
 
 SESSION_COOKIE_SAMESITE = os.getenv('SESSION_COOKIE_SAMESITE', 'Lax')
@@ -135,6 +135,11 @@ def _split_origin_list(raw_value):
 CSRF_TRUSTED_ORIGINS = _split_origin_list(os.getenv('CSRF_TRUSTED_ORIGINS', ''))
 
 SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+ENABLE_RMF_DEFAULT = os.getenv('ENABLE_RMF', 'false').lower() == 'true'
+RMF_API_BASE_URL = os.getenv('RMF_API_BASE_URL', '').strip().rstrip('/')
+RMF_API_KEY_SECRET_NAME = os.getenv('RMF_API_KEY_SECRET_NAME', '').strip()
+RMF_API_TIMEOUT_SECONDS = float(os.getenv('RMF_API_TIMEOUT_SECONDS', '15'))
+RMF_API_UPLOAD_TIMEOUT_SECONDS = float(os.getenv('RMF_API_UPLOAD_TIMEOUT_SECONDS', '300'))
 
 # Security Configuration
 ENABLE_STRICT_TRANSPORT_SECURITY = os.getenv('ENABLE_HSTS', 'false').lower() == 'true'
