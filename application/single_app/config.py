@@ -135,6 +135,7 @@ def _split_origin_list(raw_value):
 CSRF_TRUSTED_ORIGINS = _split_origin_list(os.getenv('CSRF_TRUSTED_ORIGINS', ''))
 
 SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+RMF_ANALYSIS_METRICS_KEY = os.getenv('RMF_ANALYSIS_METRICS_KEY', '')
 ENABLE_RMF_DEFAULT = os.getenv('ENABLE_RMF', 'false').lower() == 'true'
 RMF_API_BASE_URL = os.getenv('RMF_API_BASE_URL', '').strip().rstrip('/')
 RMF_API_KEY_SECRET_NAME = os.getenv('RMF_API_KEY_SECRET_NAME', '').strip()

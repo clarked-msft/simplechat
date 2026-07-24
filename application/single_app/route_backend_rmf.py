@@ -61,6 +61,10 @@ from functions_rmf import (
     validate_rmf_xlsx_package,
     withdraw_rmf_evidence,
 )
+from functions_rmf_analysis_metrics import (
+    record_rmf_analysis_baseline,
+    record_rmf_analysis_selection,
+)
 from functions_settings import enabled_required
 from swagger_wrapper import get_auth_security, swagger_route
 
@@ -413,6 +417,12 @@ def register_route_backend_rmf(bp):
             capabilities = get_rmf_analysis_capabilities(group_id, user_id, role)
         except RMFServiceError as exc:
             return jsonify({"error": str(exc)}), exc.status_code
+        baseline_controls = capabilities.get("baseline_controls", [])
+        if isinstance(baseline_controls, list):
+            record_rmf_analysis_baseline(
+                workspace_id=group_id,
+                baseline_control_count=len(baseline_controls),
+            )
         return jsonify(capabilities), 200
 
     @bp.route("/api/rmf/workspace/analysis", methods=["GET"])
@@ -457,6 +467,7 @@ def register_route_backend_rmf(bp):
         control_ids = payload.get("control_ids", [])
         fresh = payload.get("fresh", False)
         deep = payload.get("deep", False)
+        selection_metrics = payload.get("selection_metrics", {})
         if scope not in {"baseline", "selected"}:
             return jsonify({"error": "scope must be baseline or selected"}), 400
         if (
@@ -469,6 +480,8 @@ def register_route_backend_rmf(bp):
             return jsonify({"error": "control_ids must be an array of non-empty strings"}), 400
         if not isinstance(fresh, bool) or not isinstance(deep, bool):
             return jsonify({"error": "fresh and deep must be booleans"}), 400
+        if not isinstance(selection_metrics, dict):
+            return jsonify({"error": "selection_metrics must be an object"}), 400
         if scope == "selected" and not control_ids:
             return jsonify({"error": "Select at least one control"}), 400
         if scope == "baseline" and control_ids:
@@ -480,10 +493,22 @@ def register_route_backend_rmf(bp):
             "fresh": fresh,
             "deep": deep,
         }
+        def _record_selection_outcome(outcome):
+            if scope != "selected":
+                return
+            record_rmf_analysis_selection(
+                workspace_id=group_id,
+                control_ids=request_payload["control_ids"],
+                selection_duration_ms=selection_metrics.get("selection_duration_ms"),
+                outcome=outcome,
+            )
+
         try:
             job = start_rmf_analysis(group_id, user_id, role, request_payload)
         except RMFServiceError as exc:
+            _record_selection_outcome(f"rmf_error_{exc.status_code}")
             return jsonify({"error": str(exc)}), exc.status_code
+        _record_selection_outcome("submitted")
         return jsonify(job), 202
 
     @bp.route("/api/rmf/workspace/analysis/jobs/<job_id>", methods=["GET"])

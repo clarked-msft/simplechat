@@ -906,6 +906,8 @@
   let rmfAnalysisLoaded = false;
   let rmfAnalysisPollTimer = null;
   let rmfAnalysisActiveJobId = null;
+  let rmfAnalysisSelectionStartedAt = null;
+  let rmfAnalysisSelectionDurationMs = null;
   const rmfSelectedControls = new Set();
   let rmfControlsLoaded = false;
   let rmfControlsPage = 1;
@@ -1505,6 +1507,10 @@
       checkbox.checked = rmfSelectedControls.has(controlId);
       checkbox.disabled = !canManageRmfAnalysis;
       checkbox.addEventListener("change", () => {
+        if (rmfAnalysisSelectionStartedAt === null) {
+          rmfAnalysisSelectionStartedAt = Date.now();
+        }
+        rmfAnalysisSelectionDurationMs = null;
         if (checkbox.checked) {
           rmfSelectedControls.add(controlId);
         } else {
@@ -2181,6 +2187,8 @@
     if (!rmfAnalysisLoaded) await loadRmfAnalysis();
     rmfSelectedControls.clear();
     rmfSelectedControls.add(controlId);
+    rmfAnalysisSelectionStartedAt = Date.now();
+    rmfAnalysisSelectionDurationMs = null;
     const selectedScope = document.querySelector("#rmf-analysis-selected");
     selectedScope.checked = true;
     selectedScope.dispatchEvent(new Event("change"));
@@ -2566,6 +2574,8 @@
     rmfAttestationEligibleAnalysisControls(rmfAttestationCurrent)
       .forEach((controlId) => rmfSelectedControls.add(controlId));
     if (!rmfSelectedControls.size) return;
+    rmfAnalysisSelectionStartedAt = Date.now();
+    rmfAnalysisSelectionDurationMs = null;
     document.querySelector("#rmf-analysis-selected").checked = true;
     renderRmfAnalysisControls();
     updateRmfAnalysisSelectedCount();
@@ -3343,6 +3353,11 @@
       }
       button.disabled = true;
       setRmfAnalysisError();
+      const selectionDurationMs = rmfAnalysisSelectionDurationMs ?? Math.max(
+        0,
+        Date.now() - (rmfAnalysisSelectionStartedAt || Date.now())
+      );
+      rmfAnalysisSelectionDurationMs = selectionDurationMs;
       try {
         const job = await mutateRmfAnalysis("/api/rmf/workspace/analysis", {
           method: "POST",
@@ -3351,9 +3366,14 @@
             scope,
             control_ids: controlIds,
             fresh: document.querySelector("[data-rmf-analysis-fresh]").checked,
-            deep: document.querySelector("[data-rmf-analysis-deep]").checked
+            deep: document.querySelector("[data-rmf-analysis-deep]").checked,
+            selection_metrics: scope === "selected" ? {
+              selection_duration_ms: selectionDurationMs
+            } : {}
           })
         });
+        rmfAnalysisSelectionStartedAt = null;
+        rmfAnalysisSelectionDurationMs = null;
         rmfAnalysisJobs.unshift(job);
         renderRmfAnalysis();
         if (job.id) pollRmfAnalysisJob(job.id);

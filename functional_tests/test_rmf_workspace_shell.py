@@ -66,6 +66,7 @@ def test_rmf_feature_is_disabled_by_default_and_versioned():
     settings = read_text("application/single_app/functions_settings.py")
 
     assert 'VERSION = "0.250.069"' in config
+    assert "RMF_ANALYSIS_METRICS_KEY = os.getenv('RMF_ANALYSIS_METRICS_KEY', '')" in config
     assert "'enable_rmf': ENABLE_RMF_DEFAULT" in settings
     assert "ENABLE_RMF_DEFAULT = os.getenv('ENABLE_RMF', 'false')" in config
 
@@ -255,6 +256,7 @@ def test_rmf_analysis_proxy_wrappers_use_approved_service_contract(monkeypatch):
 
 def test_rmf_analysis_routes_enforce_roles_and_validate_request_shape():
     backend = read_text("application/single_app/route_backend_rmf.py")
+    template = read_text("application/single_app/templates/rmf_workspace.html")
 
     assert backend.count(
         'allowed_roles=("Owner", "Admin", "DocumentManager", "User")'
@@ -264,11 +266,18 @@ def test_rmf_analysis_routes_enforce_roles_and_validate_request_shape():
     assert 'payload.get("control_ids", [])' in backend
     assert 'payload.get("fresh", False)' in backend
     assert 'payload.get("deep", False)' in backend
+    assert 'payload.get("selection_metrics", {})' in backend
     assert "not isinstance(control_ids, list)" in backend
     assert "not isinstance(fresh, bool) or not isinstance(deep, bool)" in backend
     assert 'scope == "selected" and not control_ids' in backend
     assert 'scope == "baseline" and control_ids' in backend
+    assert "record_rmf_analysis_selection(" in backend
     assert "return jsonify(job), 202" in backend
+    assert "rmfAnalysisSelectionStartedAt" in template
+    assert "const selectionDurationMs = rmfAnalysisSelectionDurationMs ?? Math.max(" in template
+    assert "selection_duration_ms: selectionDurationMs" in template
+    assert "record_rmf_analysis_baseline(" in backend
+    assert "rmfAnalysisSelectionDurationMs" in template
 
 
 def test_rmf_analysis_ui_is_safe_role_aware_and_polls_with_bounded_retries():
@@ -339,7 +348,6 @@ def test_rmf_controls_ui_and_proxy_are_safe_and_audited():
 def test_rmf_attestation_ui_and_proxy_are_collaborative_and_audited(monkeypatch):
     rmf_template = read_text("application/single_app/templates/rmf_workspace.html")
     backend = read_text("application/single_app/route_backend_rmf.py")
-    rmf_functions = read_text("application/single_app/functions_rmf.py")
     rmf = load_functions_rmf(monkeypatch)
     requests = []
 

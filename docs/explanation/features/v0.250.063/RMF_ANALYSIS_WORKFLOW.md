@@ -19,3 +19,18 @@ polls durable jobs with bounded retries and refreshes the Overview dashboard
 when a job reaches succeeded, partial, failed, stale, or cancelled status.
 All service values are rendered with safe DOM APIs; no RMF credential is
 exposed to the browser.
+
+## Recurring-selection measurement
+
+Set `RMF_ANALYSIS_METRICS_KEY` to a dedicated random secret to enable
+privacy-preserving measurement of custom selections. SimpleChat records only
+HMAC-derived workspace/scope digests, selected and baseline control counts,
+selection duration, and submission outcome. It does not record workspace IDs,
+user IDs, control IDs, or control text. Missing or failed telemetry never blocks
+analysis.
+
+Use the `rmf_custom_analysis_selection` and `rmf_analysis_baseline_size` event
+names in Application Insights to measure repeated workspace scopes, median
+selection duration, selected-to-baseline ratio, and submission errors. Treat a
+missing metrics key or either event stream as insufficient evidence rather than
+as proof that reusable profiles are unnecessary.
