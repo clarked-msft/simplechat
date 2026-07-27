@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * Functional test for RMF chat idempotent transport retries.
- * Version: 0.250.071
+ * Version: 0.250.072
  * Implemented in: 0.250.071
  *
- * This test verifies that one send reuses its UUID after a lost response and
- * that a later send receives a different UUID.
+ * This test verifies that one send reuses its UUID after a retryable transport
+ * or HTTP failure, while a later send receives a different UUID.
  */
 
 "use strict";
@@ -41,13 +41,15 @@ async function testStableRetryKey() {
     apiRequest,
     "/messages",
     {expected_revision: 1, question: "What changed?"},
-    cryptoObject
+    cryptoObject,
+    async () => {}
   );
   await retry.sendWithStableIdempotency(
     apiRequest,
     "/messages",
     {expected_revision: 2, question: "What remains?"},
-    cryptoObject
+    cryptoObject,
+    async () => {}
   );
 
   assert.equal(requestBodies.length, 3);
@@ -55,23 +57,47 @@ async function testStableRetryKey() {
   assert.notEqual(requestBodies[1].idempotency_key, requestBodies[2].idempotency_key);
   assert.equal(requestBodies[0].question, "What changed?");
 
-  let httpCalls = 0;
-  const rateLimit = Object.assign(new Error("Conversation limit reached"), {
-    status: 429
+  for (const status of [429, 503]) {
+    const retryBodies = [];
+    let retryCalls = 0;
+    const retryableError = Object.assign(new Error("Temporary failure"), {status});
+    await retry.sendWithStableIdempotency(
+      async (_requestPath, options) => {
+        retryCalls += 1;
+        retryBodies.push(JSON.parse(options.body));
+        if (retryCalls === 1) throw retryableError;
+        return {id: "chat-1"};
+      },
+      "/messages",
+      {expected_revision: 3, question: "Try this safely"},
+      cryptoObject,
+      async () => {}
+    );
+    assert.equal(retryCalls, 2);
+    assert.equal(
+      retryBodies[0].idempotency_key,
+      retryBodies[1].idempotency_key
+    );
+  }
+
+  let conflictCalls = 0;
+  const conflict = Object.assign(new Error("Permanent limit reached"), {
+    status: 409
   });
   await assert.rejects(
     retry.sendWithStableIdempotency(
       async () => {
-        httpCalls += 1;
-        throw rateLimit;
+        conflictCalls += 1;
+        throw conflict;
       },
       "/messages",
       {expected_revision: 3, question: "One more?"},
-      cryptoObject
+      cryptoObject,
+      async () => {}
     ),
-    (error) => error === rateLimit
+    (error) => error === conflict
   );
-  assert.equal(httpCalls, 1);
+  assert.equal(conflictCalls, 1);
 }
 
 testStableRetryKey()

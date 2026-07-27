@@ -2,6 +2,7 @@
 
 Implemented in version: **0.250.070**
 Updated in version: **0.250.071**
+Retry policy updated in version: **0.250.072**
 
 ## Overview
 
@@ -47,10 +48,11 @@ returned to the browser.
 
 Message and archive writes require `expected_revision`. Message writes also send
 an optional `idempotency_key`. The browser generates a new UUID for each send
-and reuses it for one automatic replay if the first request loses its HTTP
-response. HTTP responses are not retried. A paired-service HTTP 409 is preserved
-so the UI can lock the stale investigation and direct the user to create a new
-one.
+and reuses it for one bounded automatic replay after a transport failure,
+workspace-busy HTTP 429, or temporary-model HTTP 503. HTTP 409 and all other
+responses are not retried. A stale or revision-conflict HTTP 409 locks the
+investigation and directs the user to create a new one; a permanent-limit HTTP
+409 preserves the draft without incorrectly marking the snapshot stale.
 
 ## Security and accessibility
 
@@ -74,9 +76,11 @@ one.
   128 characters using letters, numbers, `.`, `_`, `:`, or `-`.
 - Successful message, archive, session-detail, and source-detail calls return
   HTTP 200; session creation returns HTTP 201.
-- Whitespace-only questions return HTTP 422. Workspace/model concurrency and
-  configured conversation, turn, or storage limits return HTTP 429. The UI
-  preserves the question and presents a specific message for both statuses.
+- Whitespace-only questions return HTTP 422. Stale/revision conflicts and
+  permanent limits return non-retryable HTTP 409, workspace-busy responses
+  return retryable HTTP 429, and temporary model failures return retryable HTTP
+  503. The UI preserves the question after non-stale failures and presents
+  status-specific messages.
 - Message `idempotency_key` values are optional opaque strings up to 100
   characters. Browser sends use UUIDs stable across the bounded transport retry.
 - `ChatMessage.request_id` may be returned for request tracing. The UI safely
@@ -89,10 +93,12 @@ one.
 ## Testing
 
 `functional_tests/test_rmf_investigative_chat.py` validates paired-service path
-mapping, payload forwarding, role access, request validation, HTTP 409/422/429
-semantics, route and navigation wiring, safe Markdown/citation handling, and the
-key responsive UI states. `functional_tests/test_rmf_chat_idempotency.js`
-executes the transport-retry helper and verifies that a replay reuses its UUID
-while a new send receives a different UUID.
+mapping, payload forwarding, role access, request validation, HTTP
+409/422/429/503 semantics, route and navigation wiring, safe Markdown/citation
+handling, and the key responsive UI states.
+`functional_tests/test_rmf_chat_idempotency.js`
+executes the retry helper and verifies stable UUID reuse for transport,
+workspace-busy, and temporary-model retries; non-retryable HTTP 409 behavior;
+and UUID rotation for a new send.
 
 The version update is tracked in `application/single_app/config.py`.

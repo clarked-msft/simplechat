@@ -78,12 +78,27 @@
       return `RMF could not accept this question. ${error.message}`;
     }
     if (error.status === 429) {
-      return `RMF chat has reached a configured or concurrency limit. ${error.message}`;
+      return `The RMF workspace is still busy after a safe retry. ${error.message}`;
+    }
+    if (error.status === 503) {
+      return `The RMF model is temporarily unavailable after a safe retry. ${error.message}`;
     }
     if (!Number.isInteger(error.status)) {
       return "The RMF chat response could not be confirmed after a safe retry. Try again.";
     }
     return error.message;
+  }
+
+  function isStaleConflict(error) {
+    if (error.status !== 409) return false;
+    const detail = [
+      error.payload?.code,
+      error.payload?.reason,
+      error.message
+    ].filter(Boolean).join(" ").toLowerCase();
+    return /\b(stale|revision|snapshot)\b/.test(detail)
+      || /assessment\s+(has\s+)?changed/.test(detail)
+      || /start\s+a\s+new\s+chat/.test(detail);
   }
 
   function setGlobalError(message) {
@@ -648,13 +663,15 @@
       );
       renderConversation(updated);
     } catch (error) {
-      const restored = error.status === 409
+      const staleConflict = isStaleConflict(error);
+      const restored = staleConflict
         ? {...previous, is_stale: true}
         : previous;
       renderConversation(restored);
-      if (error.status !== 409) {
+      if (!staleConflict) {
         elements.question.value = question;
         updateCharacterCount();
+        window.requestAnimationFrame(() => elements.question.focus());
       }
       setGlobalError(messageForChatError(error));
     } finally {

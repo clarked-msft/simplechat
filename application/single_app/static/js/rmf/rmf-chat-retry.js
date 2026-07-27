@@ -1,6 +1,9 @@
 (function initializeRmfChatRetry(globalScope) {
   "use strict";
 
+  const retryableStatuses = new Set([429, 503]);
+  const retryDelayMs = 500;
+
   function createIdempotencyKey(cryptoObject = globalScope.crypto) {
     if (typeof cryptoObject?.randomUUID === "function") {
       return cryptoObject.randomUUID();
@@ -26,7 +29,10 @@
     apiRequest,
     path,
     message,
-    cryptoObject = globalScope.crypto
+    cryptoObject = globalScope.crypto,
+    wait = (milliseconds) => new Promise((resolve) => {
+      globalScope.setTimeout(resolve, milliseconds);
+    })
   ) {
     const payload = {
       ...message,
@@ -41,7 +47,13 @@
     try {
       return await apiRequest(path, options);
     } catch (error) {
-      if (!(error instanceof TypeError)) throw error;
+      if (
+        !(error instanceof TypeError)
+        && !retryableStatuses.has(error?.status)
+      ) {
+        throw error;
+      }
+      await wait(retryDelayMs);
       return apiRequest(path, options);
     }
   }

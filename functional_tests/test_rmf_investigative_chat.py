@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Functional tests for the dedicated RMF investigative chat workspace.
-Version: 0.250.071
+Version: 0.250.072
 Implemented in: 0.250.070
 
 These tests validate the workspace-scoped proxy contract, request validation,
@@ -204,7 +204,8 @@ def test_rmf_chat_proxy_validates_requests_and_preserves_stale_conflict(monkeypa
 
     service_responses = [
         ("Assessment changed. Start a new chat.", 409),
-        ("The workspace conversation limit has been reached.", 429),
+        ("The workspace is busy.", 429),
+        ("The configured model is temporarily unavailable.", 503),
     ]
 
     def send_message(*args):
@@ -268,13 +269,20 @@ def test_rmf_chat_proxy_validates_requests_and_preserves_stale_conflict(monkeypa
         json={"expected_revision": 1, "question": "Can I ask another question?"},
     )
     assert limited.status_code == 429
-    assert limited.get_json()["error"] == (
-        "The workspace conversation limit has been reached."
-    )
+    assert limited.get_json()["error"] == "The workspace is busy."
     assert calls[1][-1] == {
         "expected_revision": 1,
         "question": "Can I ask another question?",
     }
+
+    unavailable = client.post(
+        "/api/rmf/workspace/chat/sessions/chat-1/messages",
+        json={"expected_revision": 1, "question": "Try the model again?"},
+    )
+    assert unavailable.status_code == 503
+    assert unavailable.get_json()["error"] == (
+        "The configured model is temporarily unavailable."
+    )
     assert role_checks
     assert set(role_checks[0]) == {"Owner", "Admin", "DocumentManager", "User"}
 
@@ -296,7 +304,7 @@ def test_rmf_chat_route_navigation_and_key_ui_states_are_wired():
         )
     )
 
-    assert 'VERSION = "0.250.071"' in config
+    assert 'VERSION = "0.250.072"' in config
     assert '@bp.route("/rmf/chat", methods=["GET"])' in frontend
     assert "frontend_rmf.rmf_chat" in navigation
     for endpoint in (
@@ -330,6 +338,8 @@ def test_rmf_chat_route_navigation_and_key_ui_states_are_wired():
     assert "sendWithStableIdempotency" in script
     assert "error.status === 422" in script
     assert "error.status === 429" in script
+    assert "error.status === 503" in script
+    assert "isStaleConflict" in script
     assert "rmf-chat-retry.js" in template
     assert "requestId !== state.conversationRequestId" in script
     assert "requestId !== state.sourceRequestId" in script
