@@ -237,8 +237,13 @@
               {% endif %}
               {% if app_settings.enable_rmf %}
                 <li class="nav-item">
-                  <a class="nav-link d-flex align-items-center" href="{{ url_for('frontend_rmf.rmf_workspace') }}" title="Open the Risk Management Framework workspace for the active group.">
+                  <a class="nav-link d-flex align-items-center{{ ' active' if request.endpoint == 'frontend_rmf.rmf_workspace' else '' }}" href="{{ url_for('frontend_rmf.rmf_workspace') }}" title="Open the Risk Management Framework workspace for the active group.">
                     <i class="bi bi-shield-check me-2" style="font-size: 0.8em;"></i><span class="nav-text">RMF</span>
+                  </a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link d-flex align-items-center{{ ' active' if request.endpoint == 'frontend_rmf.rmf_chat' else '' }}" href="{{ url_for('frontend_rmf.rmf_chat') }}" title="Investigate the current RMF assessment snapshot with grounded, cited chat.">
+                    <i class="bi bi-chat-left-text me-2" style="font-size: 0.8em;"></i><span class="nav-text">RMF Chat</span>
                   </a>
                 </li>
               {% endif %}
@@ -249,8 +254,11 @@
               <i class="bi bi-folder me-2"></i><span class="nav-text"> Groups</span>
             </a>
             {% if app_settings.enable_rmf %}
-            <a class="nav-link d-flex align-items-center ms-3" href="{{ url_for('frontend_rmf.rmf_workspace') }}" title="Open the Risk Management Framework workspace for the active group.">
+            <a class="nav-link d-flex align-items-center ms-3{{ ' active' if request.endpoint == 'frontend_rmf.rmf_workspace' else '' }}" href="{{ url_for('frontend_rmf.rmf_workspace') }}" title="Open the Risk Management Framework workspace for the active group.">
               <i class="bi bi-shield-check me-2"></i><span class="nav-text">RMF</span>
+            </a>
+            <a class="nav-link d-flex align-items-center ms-3{{ ' active' if request.endpoint == 'frontend_rmf.rmf_chat' else '' }}" href="{{ url_for('frontend_rmf.rmf_chat') }}" title="Investigate the current RMF assessment snapshot with grounded, cited chat.">
+              <i class="bi bi-chat-left-text me-2"></i><span class="nav-text">RMF Chat</span>
             </a>
             {% endif %}
             {% endif %}

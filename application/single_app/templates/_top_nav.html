@@ -49,6 +49,9 @@
                     <div class="nav-item">
                         <a class="nav-link" href="{{ url_for('frontend_rmf.rmf_workspace') }}">RMF</a>
                     </div>
+                    <div class="nav-item">
+                        <a class="nav-link" href="{{ url_for('frontend_rmf.rmf_chat') }}">RMF Chat</a>
+                    </div>
                 {% endif %}
                 {% if app_settings.enable_public_workspaces %}
                     <div class="nav-item">
@@ -296,6 +299,9 @@
                 {% if app_settings.enable_group_workspaces and app_settings.enable_rmf %}
                     <a class="list-group-item list-group-item-action" href="{{ url_for('frontend_rmf.rmf_workspace') }}">
                         <i class="bi bi-shield-check me-2"></i>RMF
+                    </a>
+                    <a class="list-group-item list-group-item-action" href="{{ url_for('frontend_rmf.rmf_chat') }}">
+                        <i class="bi bi-chat-left-text me-2"></i>RMF Chat
                     </a>
                 {% endif %}
                 {% if app_settings.enable_public_workspaces %}

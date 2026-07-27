@@ -1,0 +1,209 @@
+<!-- templates/rmf_chat.html -->
+{% extends "base.html" %}
+
+{% block title %}RMF Chat - {{ app_settings.app_title }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/rmf-chat.css') }}">
+{% endblock %}
+
+{% block content %}
+<div
+  class="rmf-chat-workspace"
+  data-rmf-chat-workspace
+  data-group-name="{{ group.name }}"
+  data-group-role="{{ group_role }}">
+  <header class="rmf-chat-header border-bottom">
+    <div class="d-flex align-items-center gap-2 min-width-0">
+      <button
+        class="btn btn-outline-secondary btn-sm rmf-history-toggle"
+        type="button"
+        data-rmf-history-toggle
+        aria-controls="rmf-chat-history"
+        aria-expanded="true">
+        <i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i>
+        <span class="visually-hidden">Toggle conversation history</span>
+      </button>
+      <div class="min-width-0">
+        <div class="d-flex align-items-center gap-2 small text-muted">
+          <a href="{{ url_for('frontend_rmf.rmf_workspace') }}" class="text-decoration-none">RMF Workspace</a>
+          <i class="bi bi-chevron-right" aria-hidden="true"></i>
+          <span>Investigative Chat</span>
+        </div>
+        <h1 class="h5 mb-0 text-truncate" data-rmf-chat-title>New investigation</h1>
+      </div>
+    </div>
+    <div class="rmf-chat-context" aria-label="Current RMF context">
+      <span class="rmf-context-item" data-rmf-context-system>{{ group.name }}</span>
+      <span class="rmf-context-item d-none" data-rmf-context-impact></span>
+      <span class="rmf-context-item d-none" data-rmf-context-baseline></span>
+      <span class="badge rounded-pill text-bg-light border">{{ group_role }}</span>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <button
+        class="btn btn-outline-secondary btn-sm d-none"
+        type="button"
+        data-rmf-archive-chat
+        title="Archive this investigation">
+        <i class="bi bi-archive" aria-hidden="true"></i>
+        <span class="d-none d-md-inline">Archive</span>
+      </button>
+      <button class="btn btn-primary btn-sm" type="button" data-rmf-new-chat>
+        <i class="bi bi-plus-lg" aria-hidden="true"></i>
+        New chat
+      </button>
+    </div>
+  </header>
+
+  <div class="alert alert-danger d-none m-3 mb-0" role="alert" data-rmf-chat-error></div>
+  <div class="alert alert-warning d-none m-3 mb-0 rmf-stale-banner" role="status" data-rmf-stale-banner>
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <div>
+        <strong>This investigation uses an outdated assessment snapshot.</strong>
+        <div class="small mt-1">Sending is disabled so answers are not mixed across RMF revisions.</div>
+      </div>
+      <button class="btn btn-warning btn-sm" type="button" data-rmf-stale-new-chat>
+        Start a new chat
+      </button>
+    </div>
+  </div>
+
+  <div class="rmf-chat-layout" data-rmf-chat-layout>
+    <aside class="rmf-chat-history border-end" id="rmf-chat-history" aria-label="RMF chat history">
+      <div class="rmf-history-heading border-bottom">
+        <div>
+          <h2 class="h6 mb-0">Investigations</h2>
+          <div class="small text-muted">Bound to {{ group.name }}</div>
+        </div>
+        <span class="spinner-border spinner-border-sm text-primary" role="status" data-rmf-history-loading>
+          <span class="visually-hidden">Loading conversation history</span>
+        </span>
+      </div>
+
+      <section class="rmf-history-section">
+        <button
+          class="rmf-history-section-toggle"
+          type="button"
+          data-rmf-history-section-toggle="active"
+          aria-expanded="true"
+          aria-controls="rmf-active-conversations">
+          <span>Active</span>
+          <i class="bi bi-chevron-down" aria-hidden="true"></i>
+        </button>
+        <div class="list-group list-group-flush" id="rmf-active-conversations" data-rmf-active-conversations></div>
+      </section>
+
+      <section class="rmf-history-section border-top">
+        <button
+          class="rmf-history-section-toggle"
+          type="button"
+          data-rmf-history-section-toggle="archived"
+          aria-expanded="false"
+          aria-controls="rmf-archived-conversations">
+          <span>Archived</span>
+          <i class="bi bi-chevron-right" aria-hidden="true"></i>
+        </button>
+        <div class="list-group list-group-flush d-none" id="rmf-archived-conversations" data-rmf-archived-conversations></div>
+      </section>
+    </aside>
+
+    <main class="rmf-chat-main" aria-label="RMF investigative conversation">
+      <section class="rmf-chat-intro" data-rmf-chat-intro>
+        <div class="rmf-chat-intro-card">
+          <div class="d-flex align-items-start gap-3">
+            <div class="rmf-chat-intro-icon" aria-hidden="true">
+              <i class="bi bi-search"></i>
+            </div>
+            <div>
+              <h2 class="h4">Investigate the current RMF snapshot</h2>
+              <p class="text-muted mb-2">
+                Ask about evidence, control analysis, gaps, attestations, and assessment context.
+                Responses are read-only and grounded in the current RMF snapshot.
+              </p>
+              <div class="d-flex flex-wrap gap-2" data-rmf-capability-badges>
+                <span class="badge text-bg-secondary">Checking availability...</span>
+              </div>
+            </div>
+          </div>
+          <div class="rmf-source-summary mt-3 d-none" data-rmf-source-counts></div>
+          <div class="mt-4 d-none" data-rmf-starters>
+            <div class="small text-uppercase text-muted fw-semibold mb-2">Try asking</div>
+            <div class="row g-2" data-rmf-starter-prompts></div>
+          </div>
+          <div class="alert alert-info mt-4 mb-0 d-none" data-rmf-capability-message></div>
+        </div>
+      </section>
+
+      <section
+        class="rmf-chat-messages d-none"
+        data-rmf-chat-messages
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions text"></section>
+
+      <div class="rmf-chat-retrieval d-none" data-rmf-chat-retrieval role="status" aria-live="polite">
+        <div class="spinner-border spinner-border-sm text-primary" aria-hidden="true"></div>
+        <div>
+          <strong>Reviewing the current RMF snapshot</strong>
+          <div class="small text-muted">
+            Grounded retrieval completes before the cited answer appears; responses do not stream.
+          </div>
+        </div>
+      </div>
+
+      <footer class="rmf-chat-composer border-top">
+        <div class="alert alert-secondary py-2 px-3 mb-2 small" data-rmf-composer-status>
+          Select or start an active investigation to ask a question.
+        </div>
+        <form data-rmf-chat-form>
+          <label for="rmf-chat-question" class="visually-hidden">Ask about the RMF assessment</label>
+          <div class="rmf-composer-box">
+            <textarea
+              class="form-control"
+              id="rmf-chat-question"
+              rows="2"
+              maxlength="10000"
+              placeholder="Ask about evidence, controls, gaps, or the current assessment..."
+              data-rmf-chat-question
+              disabled></textarea>
+            <button
+              class="btn btn-primary"
+              type="submit"
+              data-rmf-chat-send
+              disabled
+              aria-label="Send question">
+              <i class="bi bi-arrow-up" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="d-flex justify-content-between gap-3 mt-2 small text-muted">
+            <span>Read-only: chat cannot change RMF workflows or call live cloud tools.</span>
+            <span data-rmf-character-count>0 / 10000</span>
+          </div>
+        </form>
+      </footer>
+    </main>
+  </div>
+</div>
+
+<div
+  class="offcanvas offcanvas-end rmf-source-drawer"
+  tabindex="-1"
+  id="rmfSourceDrawer"
+  aria-labelledby="rmfSourceDrawerLabel"
+  data-rmf-source-drawer>
+  <div class="offcanvas-header border-bottom">
+    <div>
+      <div class="text-uppercase small text-muted fw-semibold">RMF source</div>
+      <h2 class="offcanvas-title h5 mb-0" id="rmfSourceDrawerLabel" data-rmf-source-title>Source details</h2>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close source details"></button>
+  </div>
+  <div class="offcanvas-body" data-rmf-source-content>
+    <div class="text-muted">Select a citation to load its source details.</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/rmf/rmf-chat.js') }}"></script>
+{% endblock %}

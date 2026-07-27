@@ -253,7 +253,8 @@
 {% set nav_layout = user_settings.get('settings', {}).get('navLayout') %}
 {% set is_sidebar_layout = nav_layout == 'sidebar' or (not nav_layout and app_settings.enable_left_nav_default) %}
 {% set is_chat_page = request.endpoint == 'frontend_chats.chats' %}
-<body class="d-flex flex-column min-vh-100{% if app_settings.classification_banner_enabled and app_settings.classification_banner_text %} has-classification-banner{% endif %}{% if is_chat_page %} chat-shell-page{% endif %}{% if is_chat_page and not is_sidebar_layout %} chat-top-nav-shell{% endif %}">
+{% set is_rmf_chat_page = request.endpoint == 'frontend_rmf.rmf_chat' %}
+<body class="d-flex flex-column min-vh-100{% if app_settings.classification_banner_enabled and app_settings.classification_banner_text %} has-classification-banner{% endif %}{% if is_chat_page %} chat-shell-page{% endif %}{% if is_chat_page and not is_sidebar_layout %} chat-top-nav-shell{% endif %}{% if is_rmf_chat_page %} rmf-chat-shell-page{% endif %}">
   {% if app_settings.classification_banner_enabled and app_settings.classification_banner_text %}
     <div id="classification-banner"
          style="background: {{ app_settings.classification_banner_color or '#ffc107' }}; color: {{ app_settings.classification_banner_text_color or '#ffffff' }}; display: flex; align-items: center; justify-content: center; text-align: center; font-weight: bold; padding: 0; height: 40px; font-size: 1.1em; letter-spacing: 0.5px; position: fixed; top: 0; left: 0; width: 100%; z-index: 1051;">

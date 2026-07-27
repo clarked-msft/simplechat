@@ -62,6 +62,9 @@
           <a class="list-group-item list-group-item-action" href="{{ url_for('frontend_rmf.rmf_workspace') }}">
             <i class="bi bi-shield-check me-2"></i>RMF
           </a>
+          <a class="list-group-item list-group-item-action" href="{{ url_for('frontend_rmf.rmf_chat') }}">
+            <i class="bi bi-chat-left-text me-2"></i>RMF Chat
+          </a>
           {% endif %}
           {% if app_settings.enable_public_workspaces %}
           <a class="list-group-item list-group-item-action" href="{{ url_for('frontend_public_workspaces.public_directory') }}">

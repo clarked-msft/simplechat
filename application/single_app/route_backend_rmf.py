@@ -23,8 +23,10 @@ from functions_rmf import (
     RMF_EXPORT_MEMBER_ROLES,
     RMF_MANAGER_ROLES,
     RMFServiceError,
+    archive_rmf_chat_session,
     cancel_rmf_analysis_job,
     cancel_rmf_attestation_session,
+    create_rmf_chat_session,
     create_rmf_export,
     create_rmf_export_template,
     create_rmf_attestation_session,
@@ -37,6 +39,10 @@ from functions_rmf import (
     get_rmf_attestation_capabilities,
     get_rmf_attestation_session,
     get_rmf_attestation_sessions,
+    get_rmf_chat_capabilities,
+    get_rmf_chat_session,
+    get_rmf_chat_sessions,
+    get_rmf_chat_source,
     get_rmf_control,
     get_rmf_controls,
     get_rmf_evidence,
@@ -54,6 +60,7 @@ from functions_rmf import (
     initialize_rmf_service,
     inspect_rmf_export_template,
     mutate_rmf_export_template,
+    send_rmf_chat_message,
     set_rmf_control_applicability,
     start_rmf_analysis,
     update_group_rmf_setup_status,
@@ -84,9 +91,13 @@ def register_route_backend_rmf(bp):
         "provenance",
     }
     max_export_template_bytes = 20 * 1024 * 1024
+    chat_id_pattern = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
     def _valid_export_id(value):
         return bool(export_id_pattern.fullmatch(str(value or "")))
+
+    def _valid_chat_id(value):
+        return bool(chat_id_pattern.fullmatch(str(value or "")))
 
     def _read_export_template_upload():
         if set(request.files) != {"file"}:
@@ -236,6 +247,15 @@ def register_route_backend_rmf(bp):
                 409,
             )
         return group_id, group_doc, role, None
+
+    def _chat_group_context(user_id):
+        return _rmf_group_context(
+            user_id,
+            allowed_roles=("Owner", "Admin", "DocumentManager", "User"),
+        )
+
+    def _chat_error_response(exc):
+        return jsonify({"error": str(exc)}), exc.status_code
 
     @bp.route("/api/rmf/workspace", methods=["GET"])
     @swagger_route(security=get_auth_security())
@@ -550,6 +570,219 @@ def register_route_backend_rmf(bp):
         except RMFServiceError as exc:
             return jsonify({"error": str(exc)}), exc.status_code
         return jsonify(job), 200
+
+    @bp.route("/api/rmf/workspace/chat/capabilities", methods=["GET"])
+    @swagger_route(security=get_auth_security())
+    @login_required
+    @user_required
+    @enabled_required("enable_group_workspaces")
+    @enabled_required("enable_rmf")
+    def get_rmf_workspace_chat_capabilities():
+        user_id = get_current_user_id()
+        group_id, _, role, error_response = _chat_group_context(user_id)
+        if error_response:
+            return error_response
+        try:
+            capabilities = get_rmf_chat_capabilities(group_id, user_id, role)
+        except RMFServiceError as exc:
+            return _chat_error_response(exc)
+        return jsonify(capabilities), 200
+
+    @bp.route("/api/rmf/workspace/chat/sessions", methods=["GET"])
+    @swagger_route(security=get_auth_security())
+    @login_required
+    @user_required
+    @enabled_required("enable_group_workspaces")
+    @enabled_required("enable_rmf")
+    def get_rmf_workspace_chat_sessions():
+        user_id = get_current_user_id()
+        group_id, _, role, error_response = _chat_group_context(user_id)
+        if error_response:
+            return error_response
+        try:
+            sessions = get_rmf_chat_sessions(group_id, user_id, role)
+        except RMFServiceError as exc:
+            return _chat_error_response(exc)
+        return jsonify(sessions), 200
+
+    @bp.route("/api/rmf/workspace/chat/sessions", methods=["POST"])
+    @swagger_route(security=get_auth_security())
+    @login_required
+    @user_required
+    @enabled_required("enable_group_workspaces")
+    @enabled_required("enable_rmf")
+    def create_rmf_workspace_chat_session():
+        user_id = get_current_user_id()
+        group_id, _, role, error_response = _chat_group_context(user_id)
+        if error_response:
+            return error_response
+        payload = request.get_json(silent=True)
+        if payload is None:
+            payload = {}
+        if not isinstance(payload, dict) or set(payload) - {"title"}:
+            return jsonify({"error": "Only an optional title is supported"}), 400
+        title = payload.get("title")
+        if title is not None and (
+            not isinstance(title, str) or len(title.strip()) > 200
+        ):
+            return jsonify({"error": "title must be a string of at most 200 characters"}), 400
+        request_payload = {}
+        if isinstance(title, str) and title.strip():
+            request_payload["title"] = title.strip()
+        try:
+            conversation = create_rmf_chat_session(
+                group_id,
+                user_id,
+                role,
+                request_payload,
+            )
+        except RMFServiceError as exc:
+            return _chat_error_response(exc)
+        return jsonify(conversation), 201
+
+    @bp.route(
+        "/api/rmf/workspace/chat/sessions/<conversation_id>",
+        methods=["GET"],
+    )
+    @swagger_route(security=get_auth_security())
+    @login_required
+    @user_required
+    @enabled_required("enable_group_workspaces")
+    @enabled_required("enable_rmf")
+    def get_rmf_workspace_chat_session(conversation_id):
+        if not _valid_chat_id(conversation_id):
+            return jsonify({"error": "A valid conversation ID is required"}), 400
+        user_id = get_current_user_id()
+        group_id, _, role, error_response = _chat_group_context(user_id)
+        if error_response:
+            return error_response
+        try:
+            conversation = get_rmf_chat_session(
+                group_id,
+                user_id,
+                role,
+                conversation_id,
+            )
+        except RMFServiceError as exc:
+            return _chat_error_response(exc)
+        return jsonify(conversation), 200
+
+    @bp.route(
+        "/api/rmf/workspace/chat/sessions/<conversation_id>/messages",
+        methods=["POST"],
+    )
+    @swagger_route(security=get_auth_security())
+    @login_required
+    @user_required
+    @enabled_required("enable_group_workspaces")
+    @enabled_required("enable_rmf")
+    def send_rmf_workspace_chat_message(conversation_id):
+        if not _valid_chat_id(conversation_id):
+            return jsonify({"error": "A valid conversation ID is required"}), 400
+        user_id = get_current_user_id()
+        group_id, _, role, error_response = _chat_group_context(user_id)
+        if error_response:
+            return error_response
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict) or set(payload) != {
+            "expected_revision",
+            "question",
+        }:
+            return jsonify({
+                "error": "expected_revision and question are required"
+            }), 400
+        expected_revision = payload.get("expected_revision")
+        question = payload.get("question")
+        if (
+            not isinstance(expected_revision, int)
+            or isinstance(expected_revision, bool)
+            or expected_revision < 0
+        ):
+            return jsonify({"error": "expected_revision must be a non-negative integer"}), 400
+        if not isinstance(question, str) or not question.strip():
+            return jsonify({"error": "question must be a non-empty string"}), 400
+        if len(question.strip()) > 10000:
+            return jsonify({"error": "question must not exceed 10000 characters"}), 400
+        try:
+            conversation = send_rmf_chat_message(
+                group_id,
+                user_id,
+                role,
+                conversation_id,
+                {
+                    "expected_revision": expected_revision,
+                    "question": question.strip(),
+                },
+            )
+        except RMFServiceError as exc:
+            return _chat_error_response(exc)
+        return jsonify(conversation), 200
+
+    @bp.route(
+        "/api/rmf/workspace/chat/sessions/<conversation_id>/archive",
+        methods=["POST"],
+    )
+    @swagger_route(security=get_auth_security())
+    @login_required
+    @user_required
+    @enabled_required("enable_group_workspaces")
+    @enabled_required("enable_rmf")
+    def archive_rmf_workspace_chat_session(conversation_id):
+        if not _valid_chat_id(conversation_id):
+            return jsonify({"error": "A valid conversation ID is required"}), 400
+        user_id = get_current_user_id()
+        group_id, _, role, error_response = _chat_group_context(user_id)
+        if error_response:
+            return error_response
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict) or set(payload) != {"expected_revision"}:
+            return jsonify({"error": "expected_revision is required"}), 400
+        expected_revision = payload.get("expected_revision")
+        if (
+            not isinstance(expected_revision, int)
+            or isinstance(expected_revision, bool)
+            or expected_revision < 0
+        ):
+            return jsonify({"error": "expected_revision must be a non-negative integer"}), 400
+        try:
+            conversation = archive_rmf_chat_session(
+                group_id,
+                user_id,
+                role,
+                conversation_id,
+                {"expected_revision": expected_revision},
+            )
+        except RMFServiceError as exc:
+            return _chat_error_response(exc)
+        return jsonify(conversation), 200
+
+    @bp.route(
+        "/api/rmf/workspace/chat/sessions/<conversation_id>/sources/<source_id>",
+        methods=["GET"],
+    )
+    @swagger_route(security=get_auth_security())
+    @login_required
+    @user_required
+    @enabled_required("enable_group_workspaces")
+    @enabled_required("enable_rmf")
+    def get_rmf_workspace_chat_source(conversation_id, source_id):
+        if not _valid_chat_id(conversation_id) or not _valid_chat_id(source_id):
+            return jsonify({"error": "Valid conversation and source IDs are required"}), 400
+        user_id = get_current_user_id()
+        group_id, _, role, error_response = _chat_group_context(user_id)
+        if error_response:
+            return error_response
+        try:
+            source = get_rmf_chat_source(
+                group_id,
+                user_id,
+                role,
+                conversation_id,
+                source_id,
+            )
+        except RMFServiceError as exc:
+            return _chat_error_response(exc)
+        return jsonify(source), 200
 
     @bp.route("/api/rmf/workspace/controls", methods=["GET"])
     @swagger_route(security=get_auth_security())

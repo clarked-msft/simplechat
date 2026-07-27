@@ -387,6 +387,101 @@ def cancel_rmf_analysis_job(group_id, user_id, group_role, job_id):
     )
 
 
+def get_rmf_chat_capabilities(group_id, user_id, group_role):
+    return _rmf_request(
+        "GET",
+        "/api/v1/workspaces/current/chat/capabilities",
+        group_id,
+        user_id,
+        group_role,
+    )
+
+
+def get_rmf_chat_sessions(group_id, user_id, group_role):
+    return _rmf_request(
+        "GET",
+        "/api/v1/workspaces/current/chat/sessions",
+        group_id,
+        user_id,
+        group_role,
+    )
+
+
+def create_rmf_chat_session(group_id, user_id, group_role, payload):
+    return _rmf_request(
+        "POST",
+        "/api/v1/workspaces/current/chat/sessions",
+        group_id,
+        user_id,
+        group_role,
+        payload=payload,
+    )
+
+
+def get_rmf_chat_session(group_id, user_id, group_role, conversation_id):
+    return _rmf_request(
+        "GET",
+        "/api/v1/workspaces/current/chat/sessions/"
+        f"{quote(conversation_id, safe='')}",
+        group_id,
+        user_id,
+        group_role,
+    )
+
+
+def send_rmf_chat_message(
+    group_id,
+    user_id,
+    group_role,
+    conversation_id,
+    payload,
+):
+    return _rmf_request(
+        "POST",
+        "/api/v1/workspaces/current/chat/sessions/"
+        f"{quote(conversation_id, safe='')}/messages",
+        group_id,
+        user_id,
+        group_role,
+        payload=payload,
+    )
+
+
+def archive_rmf_chat_session(
+    group_id,
+    user_id,
+    group_role,
+    conversation_id,
+    payload,
+):
+    return _rmf_request(
+        "POST",
+        "/api/v1/workspaces/current/chat/sessions/"
+        f"{quote(conversation_id, safe='')}/archive",
+        group_id,
+        user_id,
+        group_role,
+        payload=payload,
+    )
+
+
+def get_rmf_chat_source(
+    group_id,
+    user_id,
+    group_role,
+    conversation_id,
+    source_id,
+):
+    return _rmf_request(
+        "GET",
+        "/api/v1/workspaces/current/chat/sessions/"
+        f"{quote(conversation_id, safe='')}/sources/{quote(source_id, safe='')}",
+        group_id,
+        user_id,
+        group_role,
+    )
+
+
 def get_rmf_controls(group_id, user_id, group_role, params=None):
     return _rmf_request(
         "GET",
