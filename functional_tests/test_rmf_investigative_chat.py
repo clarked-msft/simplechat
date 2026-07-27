@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Functional tests for the dedicated RMF investigative chat workspace.
-Version: 0.250.070
+Version: 0.250.071
 Implemented in: 0.250.070
 
 These tests validate the workspace-scoped proxy contract, request validation,
@@ -202,9 +202,15 @@ def test_rmf_chat_proxy_validates_requests_and_preserves_stale_conflict(monkeypa
         "messages": [],
     }
 
+    service_responses = [
+        ("Assessment changed. Start a new chat.", 409),
+        ("The workspace conversation limit has been reached.", 429),
+    ]
+
     def send_message(*args):
         calls.append(args)
-        raise service_error("Assessment changed. Start a new chat.", 409)
+        message, status_code = service_responses.pop(0)
+        raise service_error(message, status_code)
 
     route.send_rmf_chat_message = send_message
     client = app.test_client()
@@ -225,15 +231,49 @@ def test_rmf_chat_proxy_validates_requests_and_preserves_stale_conflict(monkeypa
     )
     assert invalid.status_code == 400
 
+    blank = client.post(
+        "/api/rmf/workspace/chat/sessions/chat-1/messages",
+        json={"expected_revision": 1, "question": "   "},
+    )
+    assert blank.status_code == 422
+
+    invalid_key = client.post(
+        "/api/rmf/workspace/chat/sessions/chat-1/messages",
+        json={
+            "expected_revision": 1,
+            "question": "Question",
+            "idempotency_key": "x" * 101,
+        },
+    )
+    assert invalid_key.status_code == 400
+
     stale = client.post(
         "/api/rmf/workspace/chat/sessions/chat-1/messages",
-        json={"expected_revision": 1, "question": "  What changed?  "},
+        json={
+            "expected_revision": 1,
+            "question": "  What changed?  ",
+            "idempotency_key": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+        },
     )
     assert stale.status_code == 409
     assert stale.get_json()["error"] == "Assessment changed. Start a new chat."
     assert calls[0][-1] == {
         "expected_revision": 1,
         "question": "What changed?",
+        "idempotency_key": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    }
+
+    limited = client.post(
+        "/api/rmf/workspace/chat/sessions/chat-1/messages",
+        json={"expected_revision": 1, "question": "Can I ask another question?"},
+    )
+    assert limited.status_code == 429
+    assert limited.get_json()["error"] == (
+        "The workspace conversation limit has been reached."
+    )
+    assert calls[1][-1] == {
+        "expected_revision": 1,
+        "question": "Can I ask another question?",
     }
     assert role_checks
     assert set(role_checks[0]) == {"Owner", "Admin", "DocumentManager", "User"}
@@ -256,7 +296,7 @@ def test_rmf_chat_route_navigation_and_key_ui_states_are_wired():
         )
     )
 
-    assert 'VERSION = "0.250.070"' in config
+    assert 'VERSION = "0.250.071"' in config
     assert '@bp.route("/rmf/chat", methods=["GET"])' in frontend
     assert "frontend_rmf.rmf_chat" in navigation
     for endpoint in (
@@ -287,6 +327,10 @@ def test_rmf_chat_route_navigation_and_key_ui_states_are_wired():
     assert "error.status === 409" in script
     assert "conversation.is_stale" in script
     assert "expected_revision: conversation.revision" in script
+    assert "sendWithStableIdempotency" in script
+    assert "error.status === 422" in script
+    assert "error.status === 429" in script
+    assert "rmf-chat-retry.js" in template
     assert "requestId !== state.conversationRequestId" in script
     assert "requestId !== state.sourceRequestId" in script
     assert "state.loadingConversation" in script

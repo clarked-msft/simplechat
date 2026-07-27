@@ -73,6 +73,19 @@
     return payload;
   }
 
+  function messageForChatError(error) {
+    if (error.status === 422) {
+      return `RMF could not accept this question. ${error.message}`;
+    }
+    if (error.status === 429) {
+      return `RMF chat has reached a configured or concurrency limit. ${error.message}`;
+    }
+    if (!Number.isInteger(error.status)) {
+      return "The RMF chat response could not be confirmed after a safe retry. Try again.";
+    }
+    return error.message;
+  }
+
   function setGlobalError(message) {
     elements.error.textContent = message || "";
     elements.error.classList.toggle("d-none", !message);
@@ -546,7 +559,9 @@
       renderConversation(conversation);
       return conversation;
     } catch (error) {
-      setGlobalError(error.message);
+      setGlobalError(
+        error.status === 429 ? messageForChatError(error) : error.message
+      );
       return null;
     } finally {
       setBusy(false);
@@ -623,15 +638,12 @@
     setGlobalError("");
     setBusy(true);
     try {
-      const updated = await apiRequest(
+      const updated = await window.RmfChatRetry.sendWithStableIdempotency(
+        apiRequest,
         `/api/rmf/workspace/chat/sessions/${encodeURIComponent(conversation.id)}/messages`,
         {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({
-            expected_revision: conversation.revision,
-            question
-          })
+          expected_revision: conversation.revision,
+          question
         }
       );
       renderConversation(updated);
@@ -640,7 +652,11 @@
         ? {...previous, is_stale: true}
         : previous;
       renderConversation(restored);
-      setGlobalError(error.message);
+      if (error.status !== 409) {
+        elements.question.value = question;
+        updateCharacterCount();
+      }
+      setGlobalError(messageForChatError(error));
     } finally {
       setBusy(false);
     }

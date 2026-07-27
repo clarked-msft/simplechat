@@ -1,6 +1,7 @@
 # RMF investigative chat workspace
 
 Implemented in version: **0.250.070**
+Updated in version: **0.250.071**
 
 ## Overview
 
@@ -44,9 +45,12 @@ returned to the browser.
 | `POST /api/rmf/workspace/chat/sessions/{id}/archive` | `POST /api/v1/workspaces/current/chat/sessions/{id}/archive` |
 | `GET /api/rmf/workspace/chat/sessions/{id}/sources/{source_id}` | `GET /api/v1/workspaces/current/chat/sessions/{id}/sources/{source_id}` |
 
-Message and archive writes require `expected_revision`. A paired-service HTTP
-409 is preserved so the UI can lock the stale investigation and direct the user
-to create a new one.
+Message and archive writes require `expected_revision`. Message writes also send
+an optional `idempotency_key`. The browser generates a new UUID for each send
+and reuses it for one automatic replay if the first request loses its HTTP
+response. HTTP responses are not retried. A paired-service HTTP 409 is preserved
+so the UI can lock the stale investigation and direct the user to create a new
+one.
 
 ## Security and accessibility
 
@@ -70,6 +74,13 @@ to create a new one.
   128 characters using letters, numbers, `.`, `_`, `:`, or `-`.
 - Successful message, archive, session-detail, and source-detail calls return
   HTTP 200; session creation returns HTTP 201.
+- Whitespace-only questions return HTTP 422. Workspace/model concurrency and
+  configured conversation, turn, or storage limits return HTTP 429. The UI
+  preserves the question and presents a specific message for both statuses.
+- Message `idempotency_key` values are optional opaque strings up to 100
+  characters. Browser sends use UUIDs stable across the bounded transport retry.
+- `ChatMessage.request_id` may be returned for request tracing. The UI safely
+  ignores fields it does not render.
 - `starter_prompts` are strings. The UI also accepts objects containing
   `question`, `prompt`, or `label`.
 - RMF overview remains available for the optional system, impact-level, and
@@ -78,8 +89,10 @@ to create a new one.
 ## Testing
 
 `functional_tests/test_rmf_investigative_chat.py` validates paired-service path
-mapping, payload forwarding, role access, request validation, stale HTTP 409
-preservation, route and navigation wiring, safe Markdown/citation handling, and
-the key responsive UI states.
+mapping, payload forwarding, role access, request validation, HTTP 409/422/429
+semantics, route and navigation wiring, safe Markdown/citation handling, and the
+key responsive UI states. `functional_tests/test_rmf_chat_idempotency.js`
+executes the transport-retry helper and verifies that a replay reuses its UUID
+while a new send receives a different UUID.
 
 The version update is tracked in `application/single_app/config.py`.

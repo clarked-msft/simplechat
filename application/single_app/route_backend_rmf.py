@@ -684,35 +684,54 @@ def register_route_backend_rmf(bp):
         if error_response:
             return error_response
         payload = request.get_json(silent=True)
-        if not isinstance(payload, dict) or set(payload) != {
-            "expected_revision",
-            "question",
-        }:
+        required_fields = {"expected_revision", "question"}
+        allowed_fields = required_fields | {"idempotency_key"}
+        if (
+            not isinstance(payload, dict)
+            or not required_fields.issubset(payload)
+            or set(payload) - allowed_fields
+        ):
             return jsonify({
-                "error": "expected_revision and question are required"
+                "error": (
+                    "expected_revision and question are required; "
+                    "idempotency_key is optional"
+                )
             }), 400
         expected_revision = payload.get("expected_revision")
         question = payload.get("question")
+        idempotency_key = payload.get("idempotency_key")
         if (
             not isinstance(expected_revision, int)
             or isinstance(expected_revision, bool)
             or expected_revision < 0
         ):
             return jsonify({"error": "expected_revision must be a non-negative integer"}), 400
-        if not isinstance(question, str) or not question.strip():
-            return jsonify({"error": "question must be a non-empty string"}), 400
+        if not isinstance(question, str):
+            return jsonify({"error": "question must be a string"}), 400
+        if not question.strip():
+            return jsonify({"error": "question must not be blank"}), 422
         if len(question.strip()) > 10000:
             return jsonify({"error": "question must not exceed 10000 characters"}), 400
+        if idempotency_key is not None and (
+            not isinstance(idempotency_key, str)
+            or len(idempotency_key) > 100
+        ):
+            return jsonify({
+                "error": "idempotency_key must be a string of at most 100 characters"
+            }), 400
+        request_payload = {
+            "expected_revision": expected_revision,
+            "question": question.strip(),
+        }
+        if idempotency_key is not None:
+            request_payload["idempotency_key"] = idempotency_key
         try:
             conversation = send_rmf_chat_message(
                 group_id,
                 user_id,
                 role,
                 conversation_id,
-                {
-                    "expected_revision": expected_revision,
-                    "question": question.strip(),
-                },
+                request_payload,
             )
         except RMFServiceError as exc:
             return _chat_error_response(exc)
