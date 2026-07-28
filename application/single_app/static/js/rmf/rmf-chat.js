@@ -83,6 +83,10 @@
     if (error.status === 503) {
       return `The RMF model is temporarily unavailable after a safe retry. ${error.message}`;
     }
+    if (error.status === 504) {
+      return "RMF chat generation exceeded the proxy timeout. "
+        + "Your question was restored; check the conversation before retrying.";
+    }
     if (!Number.isInteger(error.status)) {
       return "The RMF chat response could not be confirmed after a safe retry. Try again.";
     }

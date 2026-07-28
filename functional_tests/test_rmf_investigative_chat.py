@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Functional tests for the dedicated RMF investigative chat workspace.
-Version: 0.250.074
+Version: 0.250.075
 Implemented in: 0.250.070
 
 These tests validate the workspace-scoped proxy contract, request validation,
@@ -36,6 +36,7 @@ def load_functions_rmf(monkeypatch):
         "config": {
             "cosmos_groups_container": object(),
             "RMF_API_BASE_URL": "https://rmf.example",
+            "RMF_API_CHAT_TIMEOUT_SECONDS": 180,
             "RMF_API_KEY_SECRET_NAME": "rmf-key",
             "RMF_API_TIMEOUT_SECONDS": 15,
             "RMF_API_UPLOAD_TIMEOUT_SECONDS": 300,
@@ -182,7 +183,83 @@ def test_rmf_chat_client_uses_workspace_scoped_service_contract(monkeypatch):
     ]
     assert requests[2][-1]["payload"] == {"title": "Access control"}
     assert requests[4][-1]["payload"] == message
+    assert requests[4][-1]["timeout"] == 180
     assert requests[5][-1]["payload"] == archive
+
+
+def test_rmf_chat_timeout_is_dedicated_and_maps_to_gateway_timeout(monkeypatch):
+    rmf = load_functions_rmf(monkeypatch)
+    monkeypatch.setattr(rmf, "_get_rmf_service_key", lambda: "key")
+    observed_timeouts = []
+
+    def timeout_request(method, url, **kwargs):
+        observed_timeouts.append(kwargs["timeout"])
+        raise rmf.requests.Timeout("generation exceeded timeout")
+
+    monkeypatch.setattr(rmf.requests, "request", timeout_request)
+
+    with pytest.raises(rmf.RMFServiceError) as chat_error:
+        rmf.send_rmf_chat_message(
+            "workspace-1",
+            "user-1",
+            "User",
+            "chat-1",
+            {
+                "expected_revision": 1,
+                "question": "What evidence supports AC-2?",
+                "idempotency_key": "request-1",
+            },
+        )
+    assert chat_error.value.status_code == 504
+    assert str(chat_error.value) == (
+        "RMF chat generation exceeded the proxy timeout. "
+        "The question may be retried with the same idempotency key."
+    )
+
+    with pytest.raises(rmf.RMFServiceError) as ordinary_error:
+        rmf.get_rmf_chat_capabilities("workspace-1", "user-1", "User")
+    assert ordinary_error.value.status_code == 504
+    assert str(ordinary_error.value) == (
+        "The RMF service request exceeded its proxy timeout."
+    )
+    assert observed_timeouts == [180, 15]
+
+
+def test_rmf_chat_auth_retry_preserves_dedicated_timeout(monkeypatch):
+    rmf = load_functions_rmf(monkeypatch)
+    monkeypatch.setattr(rmf, "_get_rmf_service_key", lambda: "key")
+    observed_timeouts = []
+
+    class Response:
+        def __init__(self, status_code, payload):
+            self.status_code = status_code
+            self.ok = status_code < 400
+            self.content = b"{}"
+            self._payload = payload
+
+        def json(self):
+            return self._payload
+
+    responses = iter([
+        Response(401, {"detail": "invalid key"}),
+        Response(200, {"id": "chat-1"}),
+    ])
+
+    def request(method, url, **kwargs):
+        observed_timeouts.append(kwargs["timeout"])
+        return next(responses)
+
+    monkeypatch.setattr(rmf.requests, "request", request)
+    result = rmf.send_rmf_chat_message(
+        "workspace-1",
+        "user-1",
+        "User",
+        "chat-1",
+        {"expected_revision": 1, "question": "Question"},
+    )
+
+    assert result == {"id": "chat-1"}
+    assert observed_timeouts == [180, 180]
 
 
 def test_rmf_chat_proxy_validates_requests_and_preserves_stale_conflict(monkeypatch):
@@ -304,7 +381,7 @@ def test_rmf_chat_route_navigation_and_key_ui_states_are_wired():
         )
     )
 
-    assert 'VERSION = "0.250.074"' in config
+    assert 'VERSION = "0.250.075"' in config
     assert '@bp.route("/rmf/chat", methods=["GET"])' in frontend
     assert "frontend_rmf.rmf_chat" in navigation
     for endpoint in (
@@ -339,6 +416,8 @@ def test_rmf_chat_route_navigation_and_key_ui_states_are_wired():
     assert "error.status === 422" in script
     assert "error.status === 429" in script
     assert "error.status === 503" in script
+    assert "error.status === 504" in script
+    assert "elements.question.value = question" in script
     assert "isStaleConflict" in script
     assert "rmf-chat-retry.js" in template
     assert "rmf-chat-citations.js" in template
@@ -356,3 +435,22 @@ def test_rmf_chat_route_navigation_and_key_ui_states_are_wired():
     assert "/api/rmf/workspace/analysis" not in script
     assert "@media (max-width: 991.98px)" in stylesheet
     assert "@media (prefers-reduced-motion: reduce)" in stylesheet
+
+
+def test_rmf_chat_timeout_setting_is_reproducible_across_deployers():
+    bicep_container = read_text("deployers/bicep/modules/appService.bicep")
+    bicep_native = read_text(
+        "deployers/bicep/modules/appServiceNativePython.bicep"
+    )
+    compiled_bicep = read_text("deployers/bicep/main.json")
+    terraform = read_text("deployers/terraform/main.tf")
+    azure_cli = read_text("deployers/azurecli/deploy-simplechat.ps1")
+    deployer_version = read_text("deployers/version.txt").strip()
+
+    setting_name = "RMF_API_CHAT_TIMEOUT_SECONDS"
+    assert setting_name in bicep_container
+    assert setting_name in bicep_native
+    assert compiled_bicep.count(setting_name) == 2
+    assert f'"{setting_name}"                    = "180"' in terraform
+    assert f'"{setting_name}=180"' in azure_cli
+    assert deployer_version == "1.0.22"

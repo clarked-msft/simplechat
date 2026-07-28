@@ -1978,6 +1978,7 @@ else { Write-Host "Azure App Service App Settings configured." }
 
 $additionalAppSettings = @(
     "SIMPLECHAT_RUN_BACKGROUND_TASKS=1",
+    "RMF_API_CHAT_TIMEOUT_SECONDS=180",
     "VIDEO_INDEXER_ARM_API_VERSION=$param_VideoIndexerArmApiVersion"
 )
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Functional test for RMF chat citation source-detail lookup.
- * Version: 0.250.074
+ * Version: 0.250.075
  * Implemented in: 0.250.073
  *
  * This test ensures source-detail requests resolve the persisted ChatCitation.id

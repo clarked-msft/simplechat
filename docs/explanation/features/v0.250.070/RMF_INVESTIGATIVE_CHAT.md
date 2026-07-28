@@ -5,6 +5,7 @@ Updated in version: **0.250.071**
 Retry policy updated in version: **0.250.072**
 Citation lookup fixed in version: **0.250.073**
 Sources key added in version: **0.250.074**
+Dedicated generation timeout added in version: **0.250.075**
 
 ## Overview
 
@@ -62,6 +63,12 @@ workspace-busy HTTP 429, or temporary-model HTTP 503. HTTP 409 and all other
 responses are not retried. A stale or revision-conflict HTTP 409 locks the
 investigation and directs the user to create a new one; a permanent-limit HTTP
 409 preserves the draft without incorrectly marking the snapshot stale.
+
+Chat message generation uses `RMF_API_CHAT_TIMEOUT_SECONDS`, defaulting to 180
+seconds so grounded generation remains below the App Service request ceiling.
+Other RMF calls retain the 15-second `RMF_API_TIMEOUT_SECONDS` default. An
+upstream timeout returns HTTP 504 with chat-specific guidance, and the UI
+restores the drafted question instead of reporting the RMF service as down.
 
 ## Security and accessibility
 

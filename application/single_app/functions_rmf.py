@@ -21,6 +21,7 @@ from requests_toolbelt import MultipartEncoder
 from config import cosmos_groups_container
 from config import (
     RMF_API_BASE_URL,
+    RMF_API_CHAT_TIMEOUT_SECONDS,
     RMF_API_KEY_SECRET_NAME,
     RMF_API_TIMEOUT_SECONDS,
     RMF_API_UPLOAD_TIMEOUT_SECONDS,
@@ -222,9 +223,13 @@ def _rmf_request(
     extra_headers=None,
     params=None,
     retry_auth=True,
+    timeout_error_message=None,
 ):
     if not RMF_API_BASE_URL:
         raise RMFServiceError("The RMF service endpoint is not configured.", 503)
+    effective_timeout = (
+        timeout if timeout is not None else RMF_API_TIMEOUT_SECONDS
+    )
     try:
         headers = _rmf_headers(group_id, user_id, group_role)
         headers.update(extra_headers or {})
@@ -236,7 +241,7 @@ def _rmf_request(
             files=files,
             data=data,
             params=params,
-            timeout=timeout or RMF_API_TIMEOUT_SECONDS,
+            timeout=effective_timeout,
             allow_redirects=False,
         )
         if response.status_code in {401, 403}:
@@ -255,7 +260,19 @@ def _rmf_request(
                     extra_headers=extra_headers,
                     params=params,
                     retry_auth=False,
+                    timeout_error_message=timeout_error_message,
                 )
+    except requests.Timeout as exc:
+        log_event(
+            "RMF service request exceeded its proxy timeout.",
+            extra={"path": path, "timeout_seconds": effective_timeout},
+            level=logging.WARNING,
+        )
+        raise RMFServiceError(
+            timeout_error_message
+            or "The RMF service request exceeded its proxy timeout.",
+            504,
+        ) from exc
     except requests.RequestException as exc:
         log_event(
             "RMF service request failed.",
@@ -444,6 +461,11 @@ def send_rmf_chat_message(
         user_id,
         group_role,
         payload=payload,
+        timeout=RMF_API_CHAT_TIMEOUT_SECONDS,
+        timeout_error_message=(
+            "RMF chat generation exceeded the proxy timeout. "
+            "The question may be retried with the same idempotency key."
+        ),
     )
 
 
