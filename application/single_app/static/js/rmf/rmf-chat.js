@@ -218,6 +218,7 @@
 
   function citationButton(citation, conversationId) {
     const index = String(citation.index ?? "?");
+    const sourceLabel = citation.title || citation.label || "";
     const button = document.createElement("button");
     button.type = "button";
     button.className = "rmf-citation-chip";
@@ -225,12 +226,67 @@
     button.title = citation.title || citation.label || `Open source ${index}`;
     button.setAttribute(
       "aria-label",
-      `Open source ${index}${citation.title ? `: ${citation.title}` : ""}`
+      `Citation ${index}${sourceLabel ? `: ${sourceLabel}` : ""}. Open source details.`
     );
     button.addEventListener("click", () => {
       loadSourceDetails(conversationId, citation);
     });
     return button;
+  }
+
+  function renderSourcesKey(citations, conversationId) {
+    const section = document.createElement("section");
+    section.className = "rmf-sources-key";
+    section.setAttribute("aria-label", "Sources for this response");
+
+    const heading = document.createElement("h3");
+    heading.className = "rmf-sources-key-heading";
+    heading.textContent = "Sources";
+    const list = document.createElement("ol");
+    list.className = "rmf-sources-key-list";
+
+    window.RmfChatCitations.sourceKeyEntries(citations).forEach((entry) => {
+      const item = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "rmf-source-key-button";
+      const number = document.createElement("span");
+      number.className = "rmf-source-key-number";
+      number.textContent = `[${entry.index}]`;
+      const description = document.createElement("span");
+      description.className = "rmf-source-key-description";
+      if (entry.label) {
+        const sourceLabel = document.createElement("span");
+        sourceLabel.className = "rmf-source-key-label";
+        sourceLabel.textContent = entry.label;
+        description.appendChild(sourceLabel);
+      }
+      if (entry.location) {
+        const location = document.createElement("span");
+        location.className = "rmf-source-key-location";
+        location.textContent = entry.location;
+        description.appendChild(location);
+      }
+      if (!entry.label && !entry.location) {
+        description.textContent = "Open source details";
+      }
+      const accessibleDescription = [entry.label, entry.location]
+        .filter(Boolean)
+        .join(", ");
+      button.setAttribute(
+        "aria-label",
+        `Open source details for citation ${entry.index}`
+        + (accessibleDescription ? `: ${accessibleDescription}` : "")
+      );
+      button.append(number, description);
+      button.addEventListener("click", () => {
+        loadSourceDetails(conversationId, entry.citation);
+      });
+      item.appendChild(button);
+      list.appendChild(item);
+    });
+    section.append(heading, list);
+    return section;
   }
 
   function decorateInlineCitations(container, citations, conversationId) {
@@ -329,18 +385,9 @@
 
     if (role === "assistant") {
       const citations = Array.isArray(message.citations) ? message.citations : [];
-      const referenced = decorateInlineCitations(content, citations, conversationId);
-      const remaining = citations.filter(
-        (citation) => !referenced.has(String(citation.index))
-      );
-      if (remaining.length) {
-        const list = document.createElement("div");
-        list.className = "rmf-citation-list";
-        list.setAttribute("aria-label", "Supporting sources");
-        remaining.forEach((citation) => {
-          list.appendChild(citationButton(citation, conversationId));
-        });
-        body.appendChild(list);
+      decorateInlineCitations(content, citations, conversationId);
+      if (citations.length) {
+        body.appendChild(renderSourcesKey(citations, conversationId));
       }
       const insufficient = citations.length === 0
         || /insufficient evidence|not enough evidence|unable to determine/i.test(

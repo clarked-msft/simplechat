@@ -4,6 +4,7 @@ Implemented in version: **0.250.070**
 Updated in version: **0.250.071**
 Retry policy updated in version: **0.250.072**
 Citation lookup fixed in version: **0.250.073**
+Sources key added in version: **0.250.074**
 
 ## Overview
 
@@ -22,6 +23,9 @@ The workspace includes:
   feedback.
 - Sanitized Markdown responses and inline citation chips that load source
   details on demand in an accessible drawer.
+- An always-visible Sources key beneath every cited assistant response. It lists
+  every citation with its contract-provided title or label and available
+  page, section, or location metadata, even when all citations appear inline.
 - Explicit insufficient-evidence, unavailable-service, archived, and stale
   assessment states.
 - A prominent stale-snapshot banner that disables sending and starts a new
@@ -106,6 +110,8 @@ executes the retry helper and verifies stable UUID reuse for transport,
 workspace-busy, and temporary-model retries; non-retryable HTTP 409 behavior;
 and UUID rotation for a new send.
 `functional_tests/test_rmf_chat_citation_source.js` verifies that source-detail
-requests use `ChatCitation.id` when it differs from `ChatCitation.source_id`.
+requests use `ChatCitation.id` when it differs from `ChatCitation.source_id`
+and that fully inline-referenced citations still construct a complete Sources
+key with preserved numbering and available location metadata.
 
 The version update is tracked in `application/single_app/config.py`.

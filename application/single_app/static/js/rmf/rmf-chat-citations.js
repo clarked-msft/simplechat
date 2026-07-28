@@ -10,7 +10,26 @@
       + encodeURIComponent(citation.id);
   }
 
-  const citationApi = Object.freeze({sourceDetailsPath});
+  function sourceKeyEntries(citations) {
+    if (!Array.isArray(citations)) return [];
+    return citations.map((citation) => {
+      const locations = [];
+      if (citation.page !== undefined && citation.page !== null && citation.page !== "") {
+        locations.push(`Page ${citation.page}`);
+      }
+      if (citation.section) locations.push(`Section ${citation.section}`);
+      const location = citation.location || citation.metadata?.location;
+      if (location) locations.push(String(location));
+      return {
+        citation,
+        index: String(citation.index ?? "?"),
+        label: citation.title || citation.label || "",
+        location: locations.join(" · ")
+      };
+    });
+  }
+
+  const citationApi = Object.freeze({sourceDetailsPath, sourceKeyEntries});
   globalScope.RmfChatCitations = citationApi;
   if (typeof module !== "undefined" && module.exports) {
     module.exports = citationApi;

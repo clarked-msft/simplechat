@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Functional tests for the dedicated RMF investigative chat workspace.
-Version: 0.250.073
+Version: 0.250.074
 Implemented in: 0.250.070
 
 These tests validate the workspace-scoped proxy contract, request validation,
@@ -304,7 +304,7 @@ def test_rmf_chat_route_navigation_and_key_ui_states_are_wired():
         )
     )
 
-    assert 'VERSION = "0.250.073"' in config
+    assert 'VERSION = "0.250.074"' in config
     assert '@bp.route("/rmf/chat", methods=["GET"])' in frontend
     assert "frontend_rmf.rmf_chat" in navigation
     for endpoint in (
@@ -343,6 +343,9 @@ def test_rmf_chat_route_navigation_and_key_ui_states_are_wired():
     assert "rmf-chat-retry.js" in template
     assert "rmf-chat-citations.js" in template
     assert "RmfChatCitations.sourceDetailsPath" in script
+    assert "RmfChatCitations.sourceKeyEntries" in script
+    assert "renderSourcesKey(citations, conversationId)" in script
+    assert "const remaining = citations.filter" not in script
     assert "encodeURIComponent(citation.source_id)" not in script
     assert "requestId !== state.conversationRequestId" in script
     assert "requestId !== state.sourceRequestId" in script
