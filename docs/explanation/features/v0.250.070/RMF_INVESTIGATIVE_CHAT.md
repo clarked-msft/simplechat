@@ -6,6 +6,7 @@ Retry policy updated in version: **0.250.072**
 Citation lookup fixed in version: **0.250.073**
 Sources key added in version: **0.250.074**
 Dedicated generation timeout added in version: **0.250.075**
+Composer keyboard behavior added in version: **0.250.076**
 
 ## Overview
 
@@ -31,6 +32,8 @@ The workspace includes:
   assessment states.
 - A prominent stale-snapshot banner that disables sending and starts a new
   investigation against the current assessment revision.
+- An accessible multiline composer where Enter sends through the existing form,
+  Shift+Enter inserts a new line, and IME composition is not interrupted.
 
 ## Architecture
 
@@ -81,6 +84,8 @@ restores the drafted question instead of reporting the RMF service as down.
   metadata use text-only DOM APIs.
 - History controls, stale and retrieval status, citation buttons, the source
   drawer, and the composer provide labels and live-region semantics.
+- Visible composer guidance documents Enter and Shift+Enter behavior; the
+  textarea references both the current composer status and keyboard hint.
 - Responsive layouts collapse history on smaller viewports and honor reduced
   motion preferences.
 
@@ -120,5 +125,8 @@ and UUID rotation for a new send.
 requests use `ChatCitation.id` when it differs from `ChatCitation.source_id`
 and that fully inline-referenced citations still construct a complete Sources
 key with preserved numbering and available location metadata.
+`functional_tests/test_rmf_chat_composer_keyboard.js` verifies Enter,
+Shift+Enter, and IME key handling. The focused Playwright UI test additionally
+checks native newline insertion and the existing empty/busy submission guards.
 
 The version update is tracked in `application/single_app/config.py`.

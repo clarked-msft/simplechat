@@ -152,7 +152,10 @@
       </div>
 
       <footer class="rmf-chat-composer border-top">
-        <div class="alert alert-secondary py-2 px-3 mb-2 small" data-rmf-composer-status>
+        <div
+          class="alert alert-secondary py-2 px-3 mb-2 small"
+          id="rmf-chat-composer-status"
+          data-rmf-composer-status>
           Select or start an active investigation to ask a question.
         </div>
         <form data-rmf-chat-form>
@@ -164,6 +167,7 @@
               rows="2"
               maxlength="10000"
               placeholder="Ask about evidence, controls, gaps, or the current assessment..."
+              aria-describedby="rmf-chat-composer-status rmf-chat-keyboard-hint"
               data-rmf-chat-question
               disabled></textarea>
             <button
@@ -176,7 +180,10 @@
             </button>
           </div>
           <div class="d-flex justify-content-between gap-3 mt-2 small text-muted">
-            <span>Read-only: chat cannot change RMF workflows or call live cloud tools.</span>
+            <div>
+              <div id="rmf-chat-keyboard-hint">Enter to send · Shift+Enter for a new line</div>
+              <div>Read-only: chat cannot change RMF workflows or call live cloud tools.</div>
+            </div>
             <span data-rmf-character-count>0 / 10000</span>
           </div>
         </form>
@@ -207,5 +214,6 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/rmf/rmf-chat-retry.js') }}"></script>
 <script src="{{ url_for('static', filename='js/rmf/rmf-chat-citations.js') }}"></script>
+<script src="{{ url_for('static', filename='js/rmf/rmf-chat-composer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/rmf/rmf-chat.js') }}"></script>
 {% endblock %}

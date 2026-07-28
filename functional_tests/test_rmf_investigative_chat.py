@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Functional tests for the dedicated RMF investigative chat workspace.
-Version: 0.250.075
+Version: 0.250.076
 Implemented in: 0.250.070
 
 These tests validate the workspace-scoped proxy contract, request validation,
@@ -381,7 +381,7 @@ def test_rmf_chat_route_navigation_and_key_ui_states_are_wired():
         )
     )
 
-    assert 'VERSION = "0.250.075"' in config
+    assert 'VERSION = "0.250.076"' in config
     assert '@bp.route("/rmf/chat", methods=["GET"])' in frontend
     assert "frontend_rmf.rmf_chat" in navigation
     for endpoint in (
@@ -421,6 +421,13 @@ def test_rmf_chat_route_navigation_and_key_ui_states_are_wired():
     assert "isStaleConflict" in script
     assert "rmf-chat-retry.js" in template
     assert "rmf-chat-citations.js" in template
+    assert "rmf-chat-composer.js" in template
+    assert "Enter to send · Shift+Enter for a new line" in template
+    assert (
+        'aria-describedby="rmf-chat-composer-status rmf-chat-keyboard-hint"'
+        in template
+    )
+    assert "RmfChatComposer.handleKeydown(event, elements.form)" in script
     assert "RmfChatCitations.sourceDetailsPath" in script
     assert "RmfChatCitations.sourceKeyEntries" in script
     assert "renderSourcesKey(citations, conversationId)" in script

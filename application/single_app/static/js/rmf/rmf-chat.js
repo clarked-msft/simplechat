@@ -851,9 +851,7 @@
       updateComposer();
     });
     elements.question.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-        elements.form.requestSubmit();
-      }
+      window.RmfChatComposer.handleKeydown(event, elements.form);
     });
 
     loadContext();
