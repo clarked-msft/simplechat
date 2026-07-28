@@ -3,6 +3,7 @@
 Implemented in version: **0.250.070**
 Updated in version: **0.250.071**
 Retry policy updated in version: **0.250.072**
+Citation lookup fixed in version: **0.250.073**
 
 ## Overview
 
@@ -45,6 +46,10 @@ returned to the browser.
 | `POST /api/rmf/workspace/chat/sessions/{id}/messages` | `POST /api/v1/workspaces/current/chat/sessions/{id}/messages` |
 | `POST /api/rmf/workspace/chat/sessions/{id}/archive` | `POST /api/v1/workspaces/current/chat/sessions/{id}/archive` |
 | `GET /api/rmf/workspace/chat/sessions/{id}/sources/{source_id}` | `GET /api/v1/workspaces/current/chat/sessions/{id}/sources/{source_id}` |
+
+The `{source_id}` route segment receives the persisted opaque
+`ChatCitation.id`. `ChatCitation.source_id` identifies the underlying
+evidence, graph, or assessment source and is not used for source-detail lookup.
 
 Message and archive writes require `expected_revision`. Message writes also send
 an optional `idempotency_key`. The browser generates a new UUID for each send
@@ -100,5 +105,7 @@ handling, and the key responsive UI states.
 executes the retry helper and verifies stable UUID reuse for transport,
 workspace-busy, and temporary-model retries; non-retryable HTTP 409 behavior;
 and UUID rotation for a new send.
+`functional_tests/test_rmf_chat_citation_source.js` verifies that source-detail
+requests use `ChatCitation.id` when it differs from `ChatCitation.source_id`.
 
 The version update is tracked in `application/single_app/config.py`.

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Functional test for RMF chat idempotent transport retries.
- * Version: 0.250.072
+ * Version: 0.250.073
  * Implemented in: 0.250.071
  *
  * This test verifies that one send reuses its UUID after a retryable transport

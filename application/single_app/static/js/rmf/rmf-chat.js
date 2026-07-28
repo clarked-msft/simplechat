@@ -728,8 +728,8 @@
   }
 
   async function loadSourceDetails(conversationId, citation) {
-    if (!citation.source_id) {
-      setGlobalError("This citation does not include a source identifier.");
+    if (!citation.id) {
+      setGlobalError("This citation does not include a citation identifier.");
       return;
     }
     const requestId = ++state.sourceRequestId;
@@ -749,8 +749,7 @@
     }
     try {
       const source = await apiRequest(
-        `/api/rmf/workspace/chat/sessions/${encodeURIComponent(conversationId)}/sources/`
-        + encodeURIComponent(citation.source_id)
+        window.RmfChatCitations.sourceDetailsPath(conversationId, citation)
       );
       if (requestId !== state.sourceRequestId) return;
       renderSourceDetails(source);
