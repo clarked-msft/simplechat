@@ -130,3 +130,29 @@ Shift+Enter, and IME key handling. The focused Playwright UI test additionally
 checks native newline insertion and the existing empty/busy submission guards.
 
 The version update is tracked in `application/single_app/config.py`.
+
+## Test deployment proof: `simplechat:49`
+
+The composer keyboard update from source commit
+`741135f8ba61a6a31c2b41d119977d6f4a98a4ae` was deployed to the existing
+SimpleChat test App Service on **2026-07-29**.
+
+| Evidence | Result |
+| --- | --- |
+| ACR build | Run `cxe` completed successfully at `2026-07-29T03:40:33Z` |
+| Previous image | `sceddevsbxacr.azurecr.io/simplechat:48` |
+| Deployed image | `sceddevsbxacr.azurecr.io/simplechat:49` |
+| Registry digest | `sha256:cf411c3983b1ba8d7ab09f31ceacb2376c73b0d64f10f71f7fc55c56aa8783fb` |
+| SimpleChat App Service | `sceddev-sbx-app` running with HTTP 200 from `https://sceddev-sbx-app.azurewebsites.net/external/healthcheck` |
+| RMF App Service | HTTP 200 from `https://sceddev-sbx-rmf-api.azurewebsites.net/healthz` |
+| RMF image continuity | Remained `sceddevsbxacr.azurecr.io/rmf-api:0.1.12-simplechat` |
+| Registry access | The SimpleChat managed identity retained one live `AcrPull` assignment at ACR scope |
+
+After the App Service restart completed at `2026-07-29T03:45:04Z`, the deployed
+`rmf-chat-composer.js` asset returned HTTP 200 and contained the
+`requestSubmit()`, Shift+Enter, IME composition, and legacy key-code guards. The
+served asset also passed `node --check`. An unauthenticated request to
+`/rmf/chat` redirected to `/login`, confirming the authentication boundary.
+Authenticated live browser interaction was not exercised because no valid
+Playwright authentication state was available; the executable local Playwright
+regression remains the interaction-level validation.
