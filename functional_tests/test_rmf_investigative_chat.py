@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Functional tests for the dedicated RMF investigative chat workspace.
-Version: 0.250.076
+Version: 0.250.077
 Implemented in: 0.250.070
 
 These tests validate the workspace-scoped proxy contract, request validation,
@@ -10,6 +10,7 @@ navigation, and the key safe/read-only UI states.
 
 import ast
 import importlib.util
+import os
 from pathlib import Path
 import sys
 import types
@@ -22,6 +23,29 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 def read_text(relative_path):
     return (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+
+
+def evaluate_config_assignment(name, monkeypatch, env_value=None):
+    config_tree = ast.parse(read_text("application/single_app/config.py"))
+    assignment = next(
+        node
+        for node in config_tree.body
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == name
+            for target in node.targets
+        )
+    )
+    if env_value is None:
+        monkeypatch.delenv(name, raising=False)
+    else:
+        monkeypatch.setenv(name, env_value)
+    expression = ast.Expression(body=assignment.value)
+    ast.fix_missing_locations(expression)
+    return eval(
+        compile(expression, "config.py", "eval"),
+        {"float": float, "os": os},
+    )
 
 
 def identity_decorator(*args, **kwargs):
@@ -38,7 +62,7 @@ def load_functions_rmf(monkeypatch):
             "RMF_API_BASE_URL": "https://rmf.example",
             "RMF_API_CHAT_TIMEOUT_SECONDS": 180,
             "RMF_API_KEY_SECRET_NAME": "rmf-key",
-            "RMF_API_TIMEOUT_SECONDS": 15,
+            "RMF_API_TIMEOUT_SECONDS": 30,
             "RMF_API_UPLOAD_TIMEOUT_SECONDS": 300,
         },
         "functions_activity_logging": {"log_general_admin_action": lambda **kwargs: None},
@@ -187,6 +211,27 @@ def test_rmf_chat_client_uses_workspace_scoped_service_contract(monkeypatch):
     assert requests[5][-1]["payload"] == archive
 
 
+def test_rmf_proxy_timeout_defaults_and_environment_overrides(monkeypatch):
+    assert evaluate_config_assignment(
+        "RMF_API_TIMEOUT_SECONDS",
+        monkeypatch,
+    ) == 30
+    assert evaluate_config_assignment(
+        "RMF_API_TIMEOUT_SECONDS",
+        monkeypatch,
+        "47.5",
+    ) == 47.5
+    assert evaluate_config_assignment(
+        "RMF_API_CHAT_TIMEOUT_SECONDS",
+        monkeypatch,
+    ) == 180
+    assert evaluate_config_assignment(
+        "RMF_API_CHAT_TIMEOUT_SECONDS",
+        monkeypatch,
+        "240",
+    ) == 240
+
+
 def test_rmf_chat_timeout_is_dedicated_and_maps_to_gateway_timeout(monkeypatch):
     rmf = load_functions_rmf(monkeypatch)
     monkeypatch.setattr(rmf, "_get_rmf_service_key", lambda: "key")
@@ -222,7 +267,7 @@ def test_rmf_chat_timeout_is_dedicated_and_maps_to_gateway_timeout(monkeypatch):
     assert str(ordinary_error.value) == (
         "The RMF service request exceeded its proxy timeout."
     )
-    assert observed_timeouts == [180, 15]
+    assert observed_timeouts == [180, 30]
 
 
 def test_rmf_chat_auth_retry_preserves_dedicated_timeout(monkeypatch):
@@ -283,6 +328,7 @@ def test_rmf_chat_proxy_validates_requests_and_preserves_stale_conflict(monkeypa
         ("Assessment changed. Start a new chat.", 409),
         ("The workspace is busy.", 429),
         ("The configured model is temporarily unavailable.", 503),
+        ("The RMF service request exceeded its proxy timeout.", 504),
     ]
 
     def send_message(*args):
@@ -360,6 +406,15 @@ def test_rmf_chat_proxy_validates_requests_and_preserves_stale_conflict(monkeypa
     assert unavailable.get_json()["error"] == (
         "The configured model is temporarily unavailable."
     )
+
+    timed_out = client.post(
+        "/api/rmf/workspace/chat/sessions/chat-1/messages",
+        json={"expected_revision": 1, "question": "Did the proxy time out?"},
+    )
+    assert timed_out.status_code == 504
+    assert timed_out.get_json()["error"] == (
+        "The RMF service request exceeded its proxy timeout."
+    )
     assert role_checks
     assert set(role_checks[0]) == {"Owner", "Admin", "DocumentManager", "User"}
 
@@ -381,7 +436,7 @@ def test_rmf_chat_route_navigation_and_key_ui_states_are_wired():
         )
     )
 
-    assert 'VERSION = "0.250.076"' in config
+    assert 'VERSION = "0.250.077"' in config
     assert '@bp.route("/rmf/chat", methods=["GET"])' in frontend
     assert "frontend_rmf.rmf_chat" in navigation
     for endpoint in (
@@ -444,7 +499,7 @@ def test_rmf_chat_route_navigation_and_key_ui_states_are_wired():
     assert "@media (prefers-reduced-motion: reduce)" in stylesheet
 
 
-def test_rmf_chat_timeout_setting_is_reproducible_across_deployers():
+def test_rmf_timeout_settings_are_reproducible_across_deployers():
     bicep_container = read_text("deployers/bicep/modules/appService.bicep")
     bicep_native = read_text(
         "deployers/bicep/modules/appServiceNativePython.bicep"
@@ -452,12 +507,26 @@ def test_rmf_chat_timeout_setting_is_reproducible_across_deployers():
     compiled_bicep = read_text("deployers/bicep/main.json")
     terraform = read_text("deployers/terraform/main.tf")
     azure_cli = read_text("deployers/azurecli/deploy-simplechat.ps1")
+    example_env = read_text("application/single_app/example.env")
     deployer_version = read_text("deployers/version.txt").strip()
 
-    setting_name = "RMF_API_CHAT_TIMEOUT_SECONDS"
-    assert setting_name in bicep_container
-    assert setting_name in bicep_native
-    assert compiled_bicep.count(setting_name) == 2
-    assert f'"{setting_name}"                    = "180"' in terraform
-    assert f'"{setting_name}=180"' in azure_cli
-    assert deployer_version == "1.0.22"
+    for setting_name, value in (
+        ("RMF_API_TIMEOUT_SECONDS", "30"),
+        ("RMF_API_CHAT_TIMEOUT_SECONDS", "180"),
+    ):
+        bicep_setting = f"{{ name: '{setting_name}', value: '{value}' }}"
+        assert bicep_setting in bicep_container
+        assert bicep_setting in bicep_native
+        compiled_setting = (
+            f"createObject('name', '{setting_name}', 'value', '{value}')"
+        )
+        assert compiled_bicep.count(compiled_setting) == 2
+        terraform_setting = next(
+            line
+            for line in terraform.splitlines()
+            if f'"{setting_name}"' in line
+        )
+        assert terraform_setting.rstrip().endswith(f'= "{value}"')
+        assert f'"{setting_name}={value}"' in azure_cli
+        assert f'{setting_name}="{value}"' in example_env
+    assert deployer_version == "1.0.23"

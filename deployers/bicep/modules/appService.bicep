@@ -106,6 +106,7 @@ resource webApp 'Microsoft.Web/sites@2022-03-01' = {
         { name: 'AZURE_ENVIRONMENT', value: azurePlatform }
         { name: 'REDIS_ENTRA_TOKEN_SCOPE', value: 'https://redis.azure.com/.default' }
         { name: 'SIMPLECHAT_RUN_BACKGROUND_TASKS', value: '1' }
+        { name: 'RMF_API_TIMEOUT_SECONDS', value: '30' }
         { name: 'RMF_API_CHAT_TIMEOUT_SECONDS', value: '180' }
         { name: 'SCM_DO_BUILD_DURING_DEPLOYMENT', value: 'false' }
         { name: 'AZURE_SUBSCRIPTION_ID', value: subscription().subscriptionId }

@@ -631,6 +631,7 @@ resource "azurerm_linux_web_app" "app" {
 
   app_settings = {
     "AZURE_ENVIRONMENT"                               = local.azure_environment_name
+    "RMF_API_TIMEOUT_SECONDS"                         = "30"
     "RMF_API_CHAT_TIMEOUT_SECONDS"                    = "180"
     "SCM_DO_BUILD_DURING_DEPLOYMENT"                  = "false"
     "WEBSITE_PULL_IMAGE_OVER_VNET"                    = var.param_enable_private_networking ? "true" : "false"

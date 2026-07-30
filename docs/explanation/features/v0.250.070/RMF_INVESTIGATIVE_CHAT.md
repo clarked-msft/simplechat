@@ -7,6 +7,7 @@ Citation lookup fixed in version: **0.250.073**
 Sources key added in version: **0.250.074**
 Dedicated generation timeout added in version: **0.250.075**
 Composer keyboard behavior added in version: **0.250.076**
+Ordinary proxy timeout updated in version: **0.250.077**
 
 ## Overview
 
@@ -69,7 +70,7 @@ investigation and directs the user to create a new one; a permanent-limit HTTP
 
 Chat message generation uses `RMF_API_CHAT_TIMEOUT_SECONDS`, defaulting to 180
 seconds so grounded generation remains below the App Service request ceiling.
-Other RMF calls retain the 15-second `RMF_API_TIMEOUT_SECONDS` default. An
+Other RMF calls use `RMF_API_TIMEOUT_SECONDS`, defaulting to 30 seconds. An
 upstream timeout returns HTTP 504 with chat-specific guidance, and the UI
 restores the drafted question instead of reporting the RMF service as down.
 

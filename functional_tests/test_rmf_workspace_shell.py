@@ -1,7 +1,7 @@
 """
 Functional wiring test for the optional RMF workspace shell.
-Version: 0.250.076
-Implemented in: 0.250.061 through 0.250.076
+Version: 0.250.077
+Implemented in: 0.250.061 through 0.250.077
 """
 
 import importlib.util
@@ -30,7 +30,7 @@ def load_functions_rmf(monkeypatch):
             "RMF_API_BASE_URL": "https://rmf.example",
             "RMF_API_CHAT_TIMEOUT_SECONDS": 180,
             "RMF_API_KEY_SECRET_NAME": "rmf-key",
-            "RMF_API_TIMEOUT_SECONDS": 15,
+            "RMF_API_TIMEOUT_SECONDS": 30,
             "RMF_API_UPLOAD_TIMEOUT_SECONDS": 300,
         },
         "functions_activity_logging": {"log_general_admin_action": lambda **kwargs: None},
@@ -66,7 +66,7 @@ def test_rmf_feature_is_disabled_by_default_and_versioned():
     config = read_text("application/single_app/config.py")
     settings = read_text("application/single_app/functions_settings.py")
 
-    assert 'VERSION = "0.250.076"' in config
+    assert 'VERSION = "0.250.077"' in config
     assert "RMF_ANALYSIS_METRICS_KEY = os.getenv('RMF_ANALYSIS_METRICS_KEY', '')" in config
     assert "'enable_rmf': ENABLE_RMF_DEFAULT" in settings
     assert "ENABLE_RMF_DEFAULT = os.getenv('ENABLE_RMF', 'false')" in config
