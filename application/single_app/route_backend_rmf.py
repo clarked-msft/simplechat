@@ -43,6 +43,7 @@ from functions_rmf import (
     get_rmf_chat_session,
     get_rmf_chat_sessions,
     get_rmf_chat_source,
+    get_rmf_collect_job,
     get_rmf_control,
     get_rmf_controls,
     get_rmf_evidence,
@@ -63,6 +64,7 @@ from functions_rmf import (
     send_rmf_chat_message,
     set_rmf_control_applicability,
     start_rmf_analysis,
+    start_rmf_collect,
     update_group_rmf_setup_status,
     update_group_rmf_state,
     validate_rmf_xlsx_package,
@@ -1492,6 +1494,49 @@ def register_route_backend_rmf(bp):
             return error_response
         try:
             result = withdraw_rmf_evidence(group_id, user_id, role, import_id)
+        except RMFServiceError as exc:
+            return jsonify({"error": str(exc)}), exc.status_code
+        return jsonify(result), 200
+
+    @bp.route("/api/rmf/workspace/evidence/collect", methods=["POST"])
+    @swagger_route(security=get_auth_security())
+    @login_required
+    @user_required
+    @enabled_required("enable_group_workspaces")
+    @enabled_required("enable_rmf")
+    def start_rmf_workspace_collect():
+        user_id = get_current_user_id()
+        group_id, _, role, error_response = _rmf_group_context(
+            user_id,
+            allowed_roles=RMF_EVIDENCE_MANAGER_ROLES,
+        )
+        if error_response:
+            return error_response
+        payload = request.get_json(silent=True) or {}
+        subscription_id = payload.get("subscription_id", "").strip()
+        if not subscription_id:
+            return jsonify({"error": "subscription_id is required"}), 400
+        resource_group = payload.get("resource_group") or None
+        agentic = bool(payload.get("agentic", False))
+        try:
+            result = start_rmf_collect(group_id, user_id, role, subscription_id, resource_group, agentic)
+        except RMFServiceError as exc:
+            return jsonify({"error": str(exc)}), exc.status_code
+        return jsonify(result), 202
+
+    @bp.route("/api/rmf/workspace/evidence/collect/jobs/<job_id>", methods=["GET"])
+    @swagger_route(security=get_auth_security())
+    @login_required
+    @user_required
+    @enabled_required("enable_group_workspaces")
+    @enabled_required("enable_rmf")
+    def get_rmf_workspace_collect_job(job_id):
+        user_id = get_current_user_id()
+        group_id, _, role, error_response = _rmf_group_context(user_id)
+        if error_response:
+            return error_response
+        try:
+            result = get_rmf_collect_job(group_id, user_id, role, job_id)
         except RMFServiceError as exc:
             return jsonify({"error": str(exc)}), exc.status_code
         return jsonify(result), 200
