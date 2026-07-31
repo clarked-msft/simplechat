@@ -66,7 +66,14 @@
 
     function poll(jobId, seenLogCount) {
       fetch("/api/rmf/workspace/evidence/collect/jobs/" + encodeURIComponent(jobId))
-        .then(function (r) { return r.json(); })
+        .then(function (r) {
+          if (!r.ok) {
+            return r.text().then(function (t) {
+              throw new Error("HTTP " + r.status + ": " + t.substring(0, 200));
+            });
+          }
+          return r.json();
+        })
         .then(function (job) {
           const log = job.log || [];
           if (log.length > seenLogCount) {

@@ -1532,7 +1532,10 @@ def register_route_backend_rmf(bp):
     @enabled_required("enable_rmf")
     def get_rmf_workspace_collect_job(job_id):
         user_id = get_current_user_id()
-        group_id, _, role, error_response = _rmf_group_context(user_id)
+        group_id, _, role, error_response = _rmf_group_context(
+            user_id,
+            allowed_roles=RMF_EVIDENCE_MANAGER_ROLES,
+        )
         if error_response:
             return error_response
         try:
