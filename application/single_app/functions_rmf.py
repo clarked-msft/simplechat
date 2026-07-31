@@ -968,6 +968,31 @@ def initialize_rmf_service(group_id, user_id, group_role, payload):
     )
 
 
+def start_rmf_collect(group_id, user_id, group_role, subscription_id, resource_group, agentic):
+    return _rmf_request(
+        "POST",
+        "/api/v1/workspaces/current/collect",
+        group_id,
+        user_id,
+        group_role,
+        payload={
+            "subscription_id": subscription_id,
+            "resource_group": resource_group or None,
+            "agentic": bool(agentic),
+        },
+    )
+
+
+def get_rmf_collect_job(group_id, user_id, group_role, job_id):
+    return _rmf_request(
+        "GET",
+        f"/api/v1/workspaces/current/collect/jobs/{job_id}",
+        group_id,
+        user_id,
+        group_role,
+    )
+
+
 def update_group_rmf_setup_status(group_id, setup_status):
     group_doc = find_group_by_id(group_id)
     if not group_doc:

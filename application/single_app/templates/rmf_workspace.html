@@ -319,6 +319,53 @@
           </div>
         </div>
       </div>
+
+      <div class="card shadow-sm border-0 mt-3">
+        <div class="card-body p-4">
+          <h2 class="h5 mb-1">Collect from Azure</h2>
+          <p class="text-muted mb-3">
+            Enumerate Azure resources and import them as evidence directly from your subscription.
+            Static collection uses the Azure CLI; enable Agentic to also gather RBAC, diagnostics,
+            and Defender posture via Azure MCP (requires MCP credentials on the server).
+          </p>
+          <form data-rmf-collect-form>
+            <div class="row g-3 mb-3">
+              <div class="col-sm-6">
+                <label class="form-label fw-semibold" for="rmf-collect-subscription">
+                  Subscription ID <span class="text-danger">*</span>
+                </label>
+                <input type="text" class="form-control form-control-sm font-monospace"
+                       id="rmf-collect-subscription"
+                       data-rmf-collect-subscription
+                       placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                       autocomplete="off" spellcheck="false" required>
+              </div>
+              <div class="col-sm-4">
+                <label class="form-label fw-semibold" for="rmf-collect-rg">
+                  Resource Group <span class="text-muted fw-normal">(optional)</span>
+                </label>
+                <input type="text" class="form-control form-control-sm"
+                       id="rmf-collect-rg"
+                       data-rmf-collect-resource-group
+                       placeholder="rg-my-workload"
+                       autocomplete="off" spellcheck="false">
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm" data-rmf-collect-submit>
+              Collect
+            </button>
+            <div hidden data-rmf-collect-status class="mt-3">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <span class="fw-semibold small">Status:</span>
+                <span class="badge bg-secondary" data-rmf-collect-status-badge>Queued</span>
+              </div>
+              <div class="border rounded p-2 bg-light font-monospace small"
+                   style="max-height:160px;overflow-y:auto;"
+                   data-rmf-collect-log></div>
+            </div>
+          </form>
+        </div>
+      </div>
     </section>
 
     <section
@@ -3324,6 +3371,7 @@
     "click",
     loadRmfEvidence
   );
+  document.addEventListener("rmf:evidence-refresh", loadRmfEvidence);
 
   document.querySelectorAll('input[name="rmf-analysis-scope"]').forEach((input) => {
     input.addEventListener("change", () => {
@@ -3654,4 +3702,5 @@
 
   loadRmfServiceState();
 </script>
+<script src="{{ url_for('static', filename='js/rmf/rmf-collect.js') }}"></script>
 {% endblock %}
