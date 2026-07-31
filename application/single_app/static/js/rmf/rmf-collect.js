@@ -2,7 +2,7 @@
  * rmf-collect.js — Collect from Azure UI for the RMF evidence tab.
  *
  * Looks for [data-rmf-collect-form] in the DOM and wires up the collect flow:
- *   1. User fills in subscription ID + optional resource group, toggles agentic
+ *   1. User fills in subscription ID + optional resource group
  *   2. POST /api/rmf/workspace/evidence/collect  → job_id
  *   3. Poll GET .../collect/jobs/<job_id> every 3 s
  *   4. Append log lines to the log panel; show final status
@@ -22,7 +22,6 @@
     const submitBtn = form.querySelector("[data-rmf-collect-submit]");
     const subscriptionInput = form.querySelector("[data-rmf-collect-subscription]");
     const resourceGroupInput = form.querySelector("[data-rmf-collect-resource-group]");
-    const agenticToggle = form.querySelector("[data-rmf-collect-agentic]");
     const statusPanel = form.querySelector("[data-rmf-collect-status]");
     const logPanel = form.querySelector("[data-rmf-collect-log]");
     const statusBadge = form.querySelector("[data-rmf-collect-status-badge]");
@@ -33,7 +32,6 @@
       submitBtn.disabled = running;
       subscriptionInput.disabled = running;
       if (resourceGroupInput) resourceGroupInput.disabled = running;
-      if (agenticToggle) agenticToggle.disabled = running;
       submitBtn.textContent = running ? "Collecting…" : "Collect";
     }
 
@@ -113,7 +111,6 @@
       const resourceGroup = resourceGroupInput
         ? (resourceGroupInput.value || "").trim() || null
         : null;
-      const agentic = agenticToggle ? agenticToggle.checked : false;
 
       // Reset log
       if (logPanel) logPanel.innerHTML = "";
@@ -127,7 +124,7 @@
         body: JSON.stringify({
           subscription_id: subscriptionId,
           resource_group: resourceGroup,
-          agentic: agentic,
+          agentic: true,
         }),
       })
         .then(function (r) {
